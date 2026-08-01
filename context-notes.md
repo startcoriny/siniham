@@ -16,6 +16,15 @@ Docker Desktop 설치는 했지만 WSL2가 안 깔려 있어서 DB 연결이 재
 - PC 콘텐츠 최대폭 1200px, 좌측메뉴 180~220px / 모바일 하단탭 60~72px, 터치 최소 44px
 - 상태 저장은 localStorage로 임시 구현 후 서버로 교체 예정
 
+## 2026-08-01 (계속) - 인증 방식을 닉네임으로 변경
+
+사용자가 화면을 직접 보려고 시도하다 인증이 막혀있는 걸 발견. 인증 방식을 이메일에서 닉네임 + 비밀번호로 바꾸기로 결정하고, 목업 로그인 테스트 계정으로 `tester` / `1234`를 지정함.
+
+- server/의 Prisma User 모델, 인증 라우트(signup/login/logout/me)는 email 기준으로 이미 작성돼 있음. 지금은 건드리지 않고, 10단계(실제 API 연결) 때 닉네임 기준으로 다시 맞추기로 함.
+- `shared/types/auth.ts`(SignupRequest/LoginRequest/AuthUser, email 필드 포함)도 실제 백엔드 계약을 그대로 반영한 것이라 지금은 안 건드림. 프론트 목업은 별도로 `client/src/mocks/mockAuth.ts` + `AuthContext`에서 처리 - shared 타입과 완전히 분리됨.
+- 기존 `client/src/lib/api.ts`(실제 API 호출 래퍼)는 더 이상 참조하는 곳이 없어서 삭제. 10단계에서 닉네임 기준으로 다시 작성.
+- 세션은 `localStorage`에 닉네임만 저장. 새로고침해도 로그인 상태 유지, 로그아웃하면 제거.
+
 ## 표기 관련
 
 사용자 환경(Windows PowerShell)에서 유니코드 기호가 깨져 보인 적이 있어서(`wsl --status` 결과 한글이 깨짐), 이후 문서와 채팅 답변에서는 화살표(->) 등 특수기호 대신 일반 텍스트를 우선 사용.

@@ -45,13 +45,20 @@
 
 ## 2단계 - 인증과 온보딩 (목업)
 
-- [ ] `client/src/mocks/mockAuth.ts` - 하드코딩 계정 1개, 회원가입은 입력값 무관 통과
-- [ ] StartPage - 로고, 캐릭터 자리표시자, "햄스터 만나러 가기" / "이미 계정이 있어요"
-- [ ] LoginPage 재작업 - 새 팔레트, 오류 상태(형식오류/미입력/불일치), 처리 중 상태
-- [ ] SignupPage 재작업 - 비밀번호 확인, 약관 동의 체크박스
+인증 방식을 이메일에서 **닉네임 + 비밀번호**로 변경 (사용자 결정). 로그인 테스트 계정 `tester` / `1234`.
+
+- [x] `client/src/mocks/mockAuth.ts` - 로그인은 `tester`/`1234`만 통과, 회원가입은 입력값 있으면 통과
+- [x] `AuthContext` (localStorage에 닉네임 저장, 새로고침에도 유지) + `ProtectedRoute`
+- [x] AuthPage - 이메일 -> 닉네임으로 변경, 1단계 디자인 시스템(PixelCard/PixelButton) 적용, 로그인 실패/성공/새로고침 유지/로그아웃 Playwright로 확인
+- [x] 기존 `client/src/lib/api.ts`(실제 백엔드 호출용) 삭제 - 더 이상 참조하는 곳 없음. 10단계에서 다시 작성
+- [ ] StartPage - 로고, 캐릭터 자리표시자, "햄스터 만나러 가기" / "이미 계정이 있어요" (현재는 AuthPage가 시작 화면을 겸함)
+- [ ] LoginPage/SignupPage를 별도 화면으로 분리할지 지금처럼 한 화면 토글로 유지할지 결정 필요
+- [ ] 오류 상태 세분화 (지금은 "닉네임 또는 비밀번호 불일치" 한 가지만 존재)
 - [ ] OnboardingPage 1단계 - 외형 7종 선택, 기본값 골든
 - [ ] OnboardingPage 2단계 - 이름 입력(1~10자, 공백만 불가), 생성 완료 연출
-- [ ] `AuthContext` (mock 로그인 여부) + `ProtectedRoute`
+- [ ] 로그인 성공 시 햄스터 유무에 따라 `/home` vs `/onboarding` 분기 (지금은 온보딩이 없어서 무조건 `/home`)
+
+주의. 서버(`server/`)의 Prisma User 모델과 인증 라우트는 아직 email 기준 그대로. 10단계(실제 API 연결)에서 닉네임 기준으로 맞춰야 함.
 
 검증. 로그인 실패/성공, 온보딩 1->2단계, 완료 후 이동까지 Playwright 스크린샷
 
