@@ -76,15 +76,18 @@
 
 검증. 4가지 상태 스크린샷, "물 채우기" 보상받기 클릭 -> 재화 100->110 반영 + 완료 도장 전환 + 토스트 확인. typecheck·build 통과.
 
-검증. 진행중 -> 보상받기 상태 전환 스크린샷
-
 ## 5. 7단계 - 정원 화면
 
-- [ ] `shared/types/garden.ts` - GardenPlot, PlantType, GrowthStage 타입
-- [ ] GardenStage - 4개 밭, 상태 5종(빈밭/씨앗심음/성장중/수확가능/잡초있음)
-- [ ] 밭 선택 -> 하단 정보 패널 (상태별 다른 내용)
-- [ ] 심기 -> 잡초제거 -> 수확 흐름 + 보상 이펙트 (햄스터 이동은 `HamsterSprite` 자리표시자로, 최소한의 위치 이동만)
-- [ ] 오프라인 진행 요약 모달 (목업으로 트리거만 구현, 하루 1회 노출 로직)
+- [x] `shared/types/garden.ts` - PlotStatus(EMPTY/GROWING/READY), GardenPlot 타입. "씨앗 심음"은 설계서의 밭 정보 패널 구성상 GROWING과 동일하게 취급, 잡초는 GROWING 상태의 부가 플래그(`hasWeed`)로 모델링
+- [x] GardenPlotTile - 4개 밭, 상태별 라벨 + 잡초 표시, 선택 시 테두리 강조
+- [x] GardenActionSheet - 밭 선택 -> 하단 정보 패널 (빈밭/성장중(+잡초)/수확가능 별 다른 내용)
+- [x] 심기 -> 잡초제거 -> 수확 흐름 (`GameStateContext`에 `plantSeed`/`removeWeed`/`harvestPlot`/`tickGardenGrowth`) + Toast로 보상 안내. 햄스터는 `HamsterSprite` 자리표시자를 정적으로 배치(실제 이동 애니메이션은 케이지 단계로 미룸)
+- [x] 오프라인 진행 요약 모달 - localStorage에 마지막으로 본 날짜 저장, 하루 1회만 노출. 문구는 설계서 예시 그대로 고정(실제 이벤트 로그가 없어 트리거 로직만 구현, 내용은 10단계에서 실제 데이터로 교체)
+- [x] 목업 성장 타이머 - lazy-tick을 흉내내어 심은 지 10초(데모용, 실제 값 아님) 지나면 자동으로 수확 가능 상태로 전환. `MOCK_GROW_DURATION_MS`로 명시
+
+임시 시연용 초기 정원 상태. 4개 밭을 각각 빈밭/성장중/수확가능/성장중+잡초로 시작해서 모든 상태를 한 화면에서 보여줌. 실제 플레이 값이 아님.
+
+검증. 오프라인 요약 모달, 4가지 밭 상태, 잡초 제거(씨앗 +1), 수확(재화 +5, 밭이 빈 상태로), 심기(씨앗 소모, 성장중으로 전환)까지 Playwright 스크린샷. typecheck·build 통과.
 
 검증. 밭 상태 전환(빈밭->심기->성장중->수확) 스크린샷 순회
 
