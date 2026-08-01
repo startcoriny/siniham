@@ -44,13 +44,13 @@
 
 ## 2. 8단계 - 상점 화면
 
-- [ ] `shared/types/cage.ts` - CageItem, ItemMaster 타입 (상점 구매 결과가 케이지 아이템이 되므로 여기서 먼저 정의)
-- [ ] ShopItemCard (쳇바퀴 100 / 터널 150, 먹이통·물통·집은 기본 지급이라 구매 버튼 없음)
-- [ ] PurchaseModal (구매 확인 -> 재화 확인 -> 완료)
-- [ ] 재화 부족 안내 상태
-- [ ] `GameStateContext`에 보유 아이템 목록 필드 추가 (재화는 1번 작업에서 이미 있음)
+- [x] `shared/types/cage.ts` - ItemId, ItemMasterInfo, CageItem 타입. ITEM_MASTERS 카탈로그(5종), STARTER_ITEM_IDS
+- [x] ShopItemCard (쳇바퀴 100 / 터널 150, 먹이통·물통·집은 기본 지급이라 상점 목록에서 제외)
+- [x] PurchaseModal (구매 확인 -> 재화 확인 -> 완료)
+- [x] 재화 부족 안내 상태 ("재화가 조금 부족해요..." + 구매 버튼 비활성화)
+- [x] `GameStateContext`에 `ownedItemIds`, `purchaseItem()` 추가 (재화는 1번 작업에서 이미 있음)
 
-검증. 구매 성공/실패(재화 부족) 스크린샷
+검증. 쳇바퀴(재화 100 정확히 소진) 구매 성공 -> "보유중" 표시, 터널(150) 구매 시도 -> 재화 부족 안내, Playwright 스크린샷 확인. typecheck·build 통과.
 
 ## 3. 설정 및 계정 화면 (신규 추가)
 
