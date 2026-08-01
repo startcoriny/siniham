@@ -16,6 +16,7 @@ interface GameStateContextValue extends GameState {
   spendCurrency: (amount: number) => boolean;
   addCurrency: (amount: number) => void;
   purchaseItem: (itemId: ItemId) => boolean;
+  resetGameState: () => void;
 }
 
 const GameStateContext = createContext<GameStateContextValue | null>(null);
@@ -63,8 +64,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
+  function resetGameState() {
+    localStorage.removeItem(STORAGE_KEY);
+    setState(defaultState());
+  }
+
   return (
-    <GameStateContext.Provider value={{ ...state, spendCurrency, addCurrency, purchaseItem }}>
+    <GameStateContext.Provider
+      value={{ ...state, spendCurrency, addCurrency, purchaseItem, resetGameState }}
+    >
       {children}
     </GameStateContext.Provider>
   );
