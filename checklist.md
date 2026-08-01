@@ -34,9 +34,17 @@
 확인한 것. 버튼 5개 상태, 상태바 4단계 색상, 모달/시트 열고 닫기, 토스트 표시, 로딩 화면.
 알아둘 것. 쇼케이스 페이지 자체는 반응형 분기가 없어서 모바일 화면에서 SideMenu가 그대로 눌려 보였음(컴포넌트 문제 아님) - 실제 반응형 App Shell은 3단계에서 구현.
 
+## 캐릭터 에셋 사전 준비 (docs/references/hamster-character-info.md 확정 후)
+
+- [x] `shared/types/hamster.ts` - HamsterAppearance(7종), HamsterBehavior(12종), Hamster, HamsterStats 타입
+- [x] `client/src/lib/hamsterAssets.ts` - 규격서 9~10장 파일 규칙대로 스프라이트 경로 계산
+- [x] `client/src/components/hamster/HamsterSprite.tsx` - 이미지 없는 조합은 원형 자리표시자로 자동 대체(onError), 좌우 반전 지원
+- [x] `client/public/assets/hamsters/` 위치 확정 및 검증 (실제 이미지 2개 + 자리표시자 폴백 스크린샷 확인)
+
+이미지가 하나씩 채워질 때마다 코드 수정 없이 자동으로 반영된다. 현재 golden/idle, golden/walk 2개 존재 (총 7색상 x 12행동 = 84개).
+
 ## 2단계 - 인증과 온보딩 (목업)
 
-- [ ] `shared/types/hamster.ts` - Hamster, HamsterColor(7종) 타입
 - [ ] `client/src/mocks/mockAuth.ts` - 하드코딩 계정 1개, 회원가입은 입력값 무관 통과
 - [ ] StartPage - 로고, 캐릭터 자리표시자, "햄스터 만나러 가기" / "이미 계정이 있어요"
 - [ ] LoginPage 재작업 - 새 팔레트, 오류 상태(형식오류/미입력/불일치), 처리 중 상태
