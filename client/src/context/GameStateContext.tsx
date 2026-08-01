@@ -6,7 +6,8 @@ import { ITEM_MASTERS, STARTER_ITEM_IDS } from "@shared/types/cage";
 import type { MissionId, MissionProgressState } from "@shared/types/mission";
 import { MISSIONS } from "@shared/types/mission";
 import type { GardenPlot } from "@shared/types/garden";
-import { GARDEN_PLOT_COUNT, HARVEST_REWARD } from "@shared/types/garden";
+import { HARVEST_REWARD } from "@shared/types/garden";
+import type { HamsterBehavior } from "@shared/types/hamster";
 
 const STORAGE_KEY = "siniham-mock-game-state";
 const STARTER_CURRENCY = 100;
@@ -32,12 +33,20 @@ const DEMO_GARDEN_PLOTS: GardenPlot[] = [
   { id: 3, status: "GROWING", hasWeed: true, plantedAt: Date.now() },
 ];
 
+// 케이지가 없어 실제 행동으로 발견되지 않는다. 자주 보일 법한 행동 3개만 미리 발견된 상태로 시작.
+const DEMO_DISCOVERED_BEHAVIORS: Partial<Record<HamsterBehavior, string>> = {
+  IDLE: "2026-08-01",
+  WALK: "2026-08-01",
+  EAT: "2026-08-01",
+};
+
 interface GameState {
   currency: number;
   ownedItemIds: ItemId[];
   missionProgress: Record<MissionId, MissionProgressState>;
   gardenPlots: GardenPlot[];
   seedCount: number;
+  discoveredBehaviors: Partial<Record<HamsterBehavior, string>>;
 }
 
 interface GameStateContextValue extends GameState {
@@ -49,6 +58,7 @@ interface GameStateContextValue extends GameState {
   removeWeed: (plotId: number) => boolean;
   harvestPlot: (plotId: number) => boolean;
   tickGardenGrowth: () => void;
+  discoverBehavior: (behaviorId: HamsterBehavior) => boolean;
   resetGameState: () => void;
 }
 
@@ -61,6 +71,7 @@ function defaultState(): GameState {
     missionProgress: DEMO_MISSION_PROGRESS,
     gardenPlots: DEMO_GARDEN_PLOTS,
     seedCount: 1,
+    discoveredBehaviors: DEMO_DISCOVERED_BEHAVIORS,
   };
 }
 
@@ -177,6 +188,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function discoverBehavior(behaviorId: HamsterBehavior): boolean {
+    if (state.discoveredBehaviors[behaviorId]) return false;
+    persist({
+      ...state,
+      discoveredBehaviors: {
+        ...state.discoveredBehaviors,
+        [behaviorId]: new Date().toISOString().slice(0, 10),
+      },
+    });
+    return true;
+  }
+
   function resetGameState() {
     localStorage.removeItem(STORAGE_KEY);
     setState(defaultState());
@@ -194,6 +217,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         removeWeed,
         harvestPlot,
         tickGardenGrowth,
+        discoverBehavior,
         resetGameState,
       }}
     >

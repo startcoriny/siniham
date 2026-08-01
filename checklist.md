@@ -93,9 +93,14 @@
 
 ## 6. 9단계 중 행동 도감 탭
 
-- [ ] `shared/types/behavior.ts`
-- [ ] BehaviorCard - 미발견(실루엣+힌트, 스펙상 실제 그림 불필요)/발견(자리표시자, 나중에 실제 스프라이트로 자동 교체) 상태, 12개 행동
-- [ ] DiscoveryModal - 새 행동 발견 알림 (트리거는 아직 케이지가 없어 수동 테스트 버튼으로 임시 확인)
+- [x] `shared/types/behavior.ts` - BEHAVIOR_INFO 12종(이름/힌트/설명, product-plan.md 6장 + hamster-character-info.md 7장 기준)
+- [x] BehaviorCard - 미발견(실루엣 "?" + 힌트)/발견(`HamsterSprite`로 실제 이미지 자동 표시 + 설명 + 발견일) 상태
+- [x] `GameStateContext`에 `discoveredBehaviors`, `discoverBehavior()` 추가
+- [x] DiscoveryModal - 새 행동 발견 알림. 케이지가 없어 트리거할 방법이 없어서 "테스트. 다음 미발견 행동 발견하기" 버튼으로 임시 확인 (케이지 완성되면 실제 행동 실행 시 자동 호출로 교체하고 이 버튼은 제거)
+
+임시 시연용 초기값. IDLE/WALK/EAT 3개만 미리 발견된 상태로 시작(자주 볼 행동이라 가정), 나머지 9개는 미발견. 실제로는 전부 미발견 상태로 시작해야 함 - 10단계에서 정정.
+
+검증. 실제 이미지 3개(가만히 있기/걷기/먹기) + 실루엣 9개 동시 표시, 테스트 버튼으로 발견 트리거 -> 발견 모달 -> 카드가 실루엣에서 실제 이미지로 전환까지 Playwright 스크린샷. typecheck·build 통과.
 
 검증. 미발견/발견 상태, 발견 알림 모달 스크린샷
 
