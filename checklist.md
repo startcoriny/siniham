@@ -1,41 +1,117 @@
-# Checklist — 0단계 스캐폴딩 + 1단계 인증 화면
+# Checklist - 화면 우선 MVP 구현
 
-DB(PostgreSQL)는 아직 준비되지 않아 이번 작업 범위에서는 화면과 코드까지만 만들고, 실제 회원가입/로그인 동작 검증은 DB 연결 후로 미룬다.
+기준 문서. [docs/specs/screen-design.md](docs/specs/screen-design.md) (11장 "화면 우선 개발 순서" 1~10단계를 그대로 따른다)
 
-## 0단계 — 스캐폴딩
+방향 전환. Docker/WSL2 문제로 DB 연결이 막혀서, 실제 API 없이 목업 데이터 + localStorage로 1~9단계(전체 화면)를 먼저 완성하고 10단계에서 실제 API로 교체하기로 결정.
 
-- [x] 루트 `package.json` (npm workspaces: client, server)
-- [x] `client/` Vite + React + TypeScript + Tailwind 초기화
-- [x] `server/` Express + TypeScript + Prisma 초기화 (tsx로 실행)
-- [x] `shared/` 폴더 생성 (인증 요청/응답 공용 타입)
-- [x] `@shared/*` 경로 별칭 — client(tsconfig + vite), server(tsconfig)
-- [x] `docker-compose.yml` (로컬 개발용 Postgres — 지금은 실행하지 않음)
-- [x] `server/.env.example`, 루트 `.env.example`
-- [x] `npm install` 성공 (루트에서 전체 워크스페이스)
-- [x] `npm run typecheck` 통과 (client + server)
+리스크 완화 장치. `shared/types/*`에 실제 API와 주고받을 타입을 미리 정의하고 목업 데이터가 그 타입을 그대로 따르게 한다. 나중에 로컬 상태를 API 호출로 바꿀 때 화면 컴포넌트는 거의 건드리지 않는 것이 목표.
 
-## 1단계 — 인증 기반
+## 이전에 완료한 작업 (0~1단계, 별도 커밋 e248503)
 
-### 백엔드
-- [x] `prisma/schema.prisma` — User 모델만 (email, passwordHash, currency, lastActiveAt)
-- [x] `npx prisma generate` 성공 (DB 연결 없이 클라이언트 타입 생성만 확인)
-- [x] JWT 발급/검증 유틸 (`src/lib/jwt.ts`)
-- [x] `POST /api/auth/signup`
-- [x] `POST /api/auth/login`
-- [x] `POST /api/auth/logout`
-- [x] `GET /api/auth/me` (쿠키 검증 미들웨어)
-- [x] 서버 부팅 확인 (`npx tsx src/index.ts`, `/api/health` 200 확인, `/api/auth/signup`은 DB 없어 500 — 라우팅까지는 정상)
+- [x] npm workspace 스캐폴딩 (client / server / shared)
+- [x] 백엔드 인증 API 코드 (signup / login / logout / me) - DB 미연결로 대기 중
+- [x] 로그인/회원가입 화면 초안 - 이번 단계에서 설계서 기준 색상/구조로 다시 작업
 
-### 프론트
-- [x] React Router 설정 (`/` = AuthPage, `/home` = 임시 플레이스홀더)
-- [x] `src/lib/api.ts` — fetch 래퍼, `credentials: 'include'`
-- [x] 로그인/회원가입 화면 (기획서 화면 1, 한 화면에서 모드 전환)
-- [x] `npm run build -w client` 성공
-- [x] 브라우저에서 화면 렌더링 확인 (Playwright + 시스템 Chrome, 로그인·회원가입 모드 둘 다 스크린샷 확인)
+## 확인 필요 - 캐릭터 아트 에셋
 
-## 이번 범위에서 하지 않은 것 (다음 단계로 이연)
+설계서 8장은 실제 픽셀 아트 스프라이트(48x48px, 7색상, 약 59프레임)를 전제로 한다. 저는 실제 게임 아트를 그릴 수 없어서, 에셋이 준비되기 전까지는 자리표시자(이모지 또는 단색 도형)로 진행한다. 4단계(정적 화면)까지는 문제없지만 5단계(애니메이션)부터는 자리표시자의 한계가 드러난다. 실제 스프라이트 준비 방법은 그 시점에 따로 정한다.
 
-- Postgres 실행, 마이그레이션(`prisma migrate`), 실제 회원가입/로그인 동작 검증
-- 세션 유지(새로고침 시 로그인 상태 복원), 라우트 보호(ProtectedRoute)
-- 온보딩/케이지 등 이후 화면 (2단계부터)
-- 배포 관련 작업
+---
+
+## 1단계 - 디자인 시스템
+
+- [x] 컬러 토큰 (배경 #FFF4DD, 카드 #FFF9EB, 메인브라운 #5A3928, 포인트핑크 #F28C9A, 포인트그린 #77A96B, 포인트옐로 #F5C451, 위험 #D86464) - Tailwind v4 `@theme`
+- [x] PixelButton (기본 / 보조 / 위험, 비활성, 로딩 상태)
+- [x] PixelCard
+- [x] Modal
+- [x] BottomSheet (모바일 우선 모달 대체)
+- [x] LoadingHamster (전체 화면 로딩용, 실제 스프라이트 전까지 원형 자리표시자)
+- [x] Toast (ToastProvider + useToast, main.tsx에 전역 장착)
+- [x] StatusBar (배고픔/목마름/청결/기분 공용, 70+ 초록 / 30~69 노랑 / 30미만 빨강)
+- [x] BottomTabBar (모바일), SideMenu (PC) - 둘 다 아직 실제 라우팅과는 미연동, 3단계에서 반응형 분기와 함께 연결
+
+검증. 임시 쇼케이스 화면(`/dev/showcase`)으로 PC/모바일 스크린샷 확인 후 파일 삭제. typecheck, build 통과.
+확인한 것. 버튼 5개 상태, 상태바 4단계 색상, 모달/시트 열고 닫기, 토스트 표시, 로딩 화면.
+알아둘 것. 쇼케이스 페이지 자체는 반응형 분기가 없어서 모바일 화면에서 SideMenu가 그대로 눌려 보였음(컴포넌트 문제 아님) - 실제 반응형 App Shell은 3단계에서 구현.
+
+## 2단계 - 인증과 온보딩 (목업)
+
+- [ ] `shared/types/hamster.ts` - Hamster, HamsterColor(7종) 타입
+- [ ] `client/src/mocks/mockAuth.ts` - 하드코딩 계정 1개, 회원가입은 입력값 무관 통과
+- [ ] StartPage - 로고, 캐릭터 자리표시자, "햄스터 만나러 가기" / "이미 계정이 있어요"
+- [ ] LoginPage 재작업 - 새 팔레트, 오류 상태(형식오류/미입력/불일치), 처리 중 상태
+- [ ] SignupPage 재작업 - 비밀번호 확인, 약관 동의 체크박스
+- [ ] OnboardingPage 1단계 - 외형 7종 선택, 기본값 골든
+- [ ] OnboardingPage 2단계 - 이름 입력(1~10자, 공백만 불가), 생성 완료 연출
+- [ ] `AuthContext` (mock 로그인 여부) + `ProtectedRoute`
+
+검증. 로그인 실패/성공, 온보딩 1->2단계, 완료 후 이동까지 Playwright 스크린샷
+
+## 3단계 - 공통 게임 레이아웃
+
+- [ ] `GameShell` 레이아웃 - 상단 정보 영역(이름/재화/알림/설정)
+- [ ] PC 좌측 메뉴 (180~220px, 콘텐츠 최대 1200px)
+- [ ] 모바일 하단 탭 (60~72px, 터치 영역 44px 이상)
+- [ ] 반응형 분기 (뷰포트 기준 PC/모바일 레이아웃 전환)
+- [ ] React Router로 탭 전환 (케이지/정원/상점/도감, 새로고침 없는 느낌)
+
+검증. 브라우저 창 크기를 바꿔가며 PC/모바일 레이아웃 스크린샷 비교
+
+## 4단계 - 케이지 정적 화면
+
+- [ ] `shared/types/cage.ts` - CageItem, ItemMaster 타입
+- [ ] CageStage - 1000x700 논리 크기, 비율 좌표(posX/posY) 시스템
+- [ ] 레이어 순서 (배경 -> 바닥 -> 뒤쪽가구 -> 햄스터 -> 앞쪽가구 -> 효과 -> 말풍선 -> UI)
+- [ ] 기본 가구 3종 배치(집/먹이통/물통), 자리표시자 스프라이트
+- [ ] 상태바 4종 표시 (2단계 컴포넌트 재사용)
+- [ ] 액션 버튼 4종 (밥주기/물주기/쓰다듬기/청소, 아직 동작 없음)
+
+검증. PC/모바일 각각 케이지 화면 스크린샷
+
+## 5단계 - 캐릭터 애니메이션 (자리표시자 기준)
+
+- [ ] 대기/걷기/쳐다보기/먹기/물마시기/잠자기/쓰다듬기 반응 - CSS 트랜지션/상태 전환으로 최대한 표현
+- [ ] 좌우 반전 (`transform: scaleX(-1)`)
+
+## 6단계 - 케이지 상호작용
+
+- [ ] `GameStateContext` - 햄스터/재화/케이지아이템 등 목업 상태 + 액션 함수(feed/water/pet/clean)
+- [ ] 액션 버튼 -> 햄스터 이동 -> 행동 실행 -> 상태 수치 변경 연동
+- [ ] 꾸미기 모드 (가구 이동/배치취소/저장/회수, PC 드래그 / 모바일 롱프레스)
+- [ ] 배치 제한 (케이지 밖 불가, 기본가구 겹침 제한, 햄스터 위 배치 불가)
+- [ ] 햄스터 직접 클릭 반응 (2~3개 변형)
+- [ ] 말풍선, Toast 알림 연동
+- [ ] 햄스터 상세 정보 모달 (친밀도 30 미만 성격 비공개)
+
+검증. 액션 버튼 클릭 전/후 상태바 변화, 가구 배치 전/후 스크린샷
+
+## 7단계 - 정원 화면
+
+- [ ] `shared/types/garden.ts` - GardenPlot, PlantType, GrowthStage 타입
+- [ ] GardenStage - 4개 밭, 상태 5종(빈밭/씨앗심음/성장중/수확가능/잡초있음)
+- [ ] 밭 선택 -> 하단 정보 패널 (상태별 다른 내용)
+- [ ] 심기 -> 잡초제거 -> 수확 흐름 + 이동/애니메이션/보상 이펙트
+- [ ] 오프라인 진행 요약 모달 (목업으로 트리거만 구현, 하루 1회 노출 로직)
+
+## 8단계 - 상점 화면
+
+- [ ] ShopItemCard (쳇바퀴 100 / 터널 150)
+- [ ] PurchaseModal (구매 확인 -> 재화 확인 -> 완료)
+- [ ] 재화 부족 안내 상태
+
+## 9단계 - 미션과 도감
+
+- [ ] `shared/types/mission.ts`, `shared/types/behavior.ts`
+- [ ] MissionCard - 진행중/보상받기 상태, 일일 미션 4종 (밥/물/애정표현/정원)
+- [ ] BehaviorCard - 미발견(실루엣+힌트)/발견 상태, 11개 행동
+- [ ] DiscoveryModal - 새 행동 발견 알림
+
+## 통합 확인
+
+- [ ] 로그인 -> 온보딩 -> 케이지 -> 정원 -> 상점 -> 도감/미션 전체 플로우 Playwright로 스크린샷 순회
+- [ ] `npm run typecheck`, `npm run build -w client` 최종 통과
+- [ ] 설계서 12장 완료 기준 항목 재점검
+
+## 10단계 - 실제 API 연결 (이번 범위 아님, 다음 단계)
+
+Docker/WSL2 준비되면 시작. 순서. 인증 -> 사용자 정보 -> 햄스터 상태 -> 케이지 데이터 -> 햄스터 액션 -> 정원 -> 상점 -> 미션 -> 행동 도감. 서버 코드는 인증 부분까지 이미 있음(1단계에서 작성).

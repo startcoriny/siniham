@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+  --color-cream: #fff4dd;
+  --color-card: #fff9eb;
+  --color-brown: #5a3928;
+  --color-accent-pink: #f28c9a;
+  --color-accent-green: #77a96b;
+  --color-accent-yellow: #f5c451;
+  --color-danger: #d86464;
+}
+
+body {
+  @apply bg-cream text-brown;
+}
