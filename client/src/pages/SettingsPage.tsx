@@ -40,14 +40,14 @@ export default function SettingsPage() {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate("/");
   }
 
-  function handleWithdraw() {
+  async function handleWithdraw() {
     resetGameState();
-    logout();
+    await logout();
     navigate("/");
   }
 

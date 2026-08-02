@@ -1,43 +1,48 @@
-// 기획서 화면 1. 로그인/회원가입 (한 화면에서 모드 전환). 임시로 목업 인증(tester/1234) 사용
+// 기획서 화면 1. 로그인/회원가입 (한 화면에서 모드 전환)
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import PixelButton from "../components/common/PixelButton";
 import PixelCard from "../components/common/PixelCard";
+import LoadingHamster from "../components/common/LoadingHamster";
 import { useAuth } from "../context/AuthContext";
 
 type Mode = "login" | "signup";
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { nickname: sessionNickname, login, signup } = useAuth();
+  const { nickname: sessionNickname, isLoading: isSessionLoading, login, signup } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  if (isSessionLoading) {
+    return <LoadingHamster message="로그인 확인 중이에요" />;
+  }
+
   if (sessionNickname) {
     return <Navigate to="/home" replace />;
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
-    const ok = mode === "login" ? login(nickname, password) : signup(nickname, password);
-
-    if (ok) {
+    try {
+      if (mode === "login") {
+        await login(nickname, password);
+      } else {
+        await signup(nickname, password);
+      }
       navigate("/home");
-    } else {
-      setError(
-        mode === "login"
-          ? "닉네임 또는 비밀번호가 일치하지 않습니다."
-          : "닉네임과 비밀번호를 입력해주세요.",
-      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   }
 
   return (

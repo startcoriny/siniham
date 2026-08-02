@@ -130,5 +130,13 @@
 - [x] `prisma migrate dev --name init` 적용
 - [x] User 모델 email -> nickname 전환 (`schema.prisma`, `shared/types/auth.ts`, `server/src/routes/auth.ts`)
 - [x] 실제 회원가입 -> 로그인 -> 쿠키 인증(`/me`) curl로 확인. `tester`/`1234` 계정 DB에 실제로 존재함
-- [ ] 프론트 `AuthContext`/`AuthPage`를 목업(`mockAuth.ts`)에서 실제 API 호출로 교체 - 아직 안 함, 지금은 화면상 변화 없음
-- [ ] 사용자 정보, 햄스터 상태, 케이지 데이터, 햄스터 액션, 정원, 상점, 미션, 행동 도감 순서로 계속 진행
+- [x] `client/src/lib/api.ts` 복원 - 닉네임 기준으로 signup/login/logout/fetchMe
+- [x] `AuthContext`를 실제 API로 전환 - 앱 시작 시 `/api/auth/me`로 세션 확인(`isLoading`), `login`/`signup`은 이제 에러를 던지고 서버 메시지를 그대로 화면에 표시, `logout`도 실제 쿠키 삭제 호출
+- [x] `mockAuth.ts` 삭제 (더 이상 참조하는 곳 없음)
+- [x] `ProtectedRoute`, `AuthPage`에 세션 확인 중 로딩 화면(`LoadingHamster`) 추가 - 로그인된 사용자가 새로고침할 때 로그인 폼이 잠깐 보이는 깜빡임 방지
+- [x] `SettingsPage`의 로그아웃/탈퇴를 `await logout()`으로 정정 (기존엔 동기 호출이었음)
+- [x] 실제 검증. 틀린 비밀번호 -> 서버 에러 메시지 표시 / 올바른 로그인 -> `/home` 이동 / 새로고침 -> 세션(httpOnly 쿠키) 유지 / 로그아웃 -> 쿠키 실제로 삭제(`document.cookie`로 접근 불가, `httpOnly: true` 확인) 전부 Playwright로 확인. typecheck·build 통과.
+
+알아둘 것. `GameStateContext`의 재화(currency)는 여전히 별개의 로컬 목업이라 서버 `User.currency`와 연결 안 돼 있음(둘 다 100에서 시작해서 지금은 안 보이지만 상점에서 구매하면 바로 어긋남). "사용자 정보" 단계에서 정리 필요.
+
+## 다음 - 사용자 정보, 햄스터 상태, 케이지 데이터, 햄스터 액션, 정원, 상점, 미션, 행동 도감 순서로 계속 진행
