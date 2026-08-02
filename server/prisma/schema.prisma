@@ -61,6 +61,8 @@ model Hamster {
 enum ItemId {
   FOOD_BOWL
   WATER_BOTTLE
+  HANDHELD_WATER_BOTTLE
+  WATER_BOWL
   HOUSE
   WHEEL
   TUNNEL

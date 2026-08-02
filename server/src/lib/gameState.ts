@@ -49,10 +49,12 @@ export async function initializeStarterData(userId: string) {
       itemMasterId: itemId,
       ...STARTER_ITEM_POSITIONS[itemId],
     })),
+    skipDuplicates: true,
   });
 
   await prisma.gardenPlot.createMany({
     data: Array.from({ length: GARDEN_PLOT_COUNT }, (_, plotIndex) => ({ userId, plotIndex })),
+    skipDuplicates: true,
   });
 }
 
@@ -94,6 +96,7 @@ export async function tickGardenGrowth(userId: string) {
 }
 
 export async function serializeState(userId: string) {
+  await initializeStarterData(userId);
   await Promise.all([ensureTodayMissions(userId), tickGardenGrowth(userId), tickHamsterState(userId)]);
 
   const [user, hamster, cageItems, gardenPlots, missions, behaviorLogs] = await Promise.all([

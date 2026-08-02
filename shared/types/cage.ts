@@ -1,6 +1,13 @@
 // 케이지 아이템(가구) 타입. MVP 5종 (docs/product-plan.md 6, 7장 기준)
 
-export type ItemId = "FOOD_BOWL" | "WATER_BOTTLE" | "HOUSE" | "WHEEL" | "TUNNEL";
+export type ItemId =
+  | "FOOD_BOWL"
+  | "WATER_BOTTLE"
+  | "HANDHELD_WATER_BOTTLE"
+  | "WATER_BOWL"
+  | "HOUSE"
+  | "WHEEL"
+  | "TUNNEL";
 
 export interface ItemMasterInfo {
   id: ItemId;
@@ -24,6 +31,20 @@ export const ITEM_MASTERS: Record<ItemId, ItemMasterInfo> = {
     cost: 0,
     purchasable: false,
     description: "기본으로 제공되는 물통이에요.",
+  },
+  HANDHELD_WATER_BOTTLE: {
+    id: "HANDHELD_WATER_BOTTLE",
+    name: "손에 쥐는 물병",
+    cost: 50,
+    purchasable: true,
+    description: "햄스터가 두 손으로 잡고 마시는 작은 물병이에요.",
+  },
+  WATER_BOWL: {
+    id: "WATER_BOWL",
+    name: "물그릇",
+    cost: 30,
+    purchasable: true,
+    description: "편하게 고개를 숙여 마실 수 있는 낮은 물그릇이에요.",
   },
   HOUSE: {
     id: "HOUSE",
