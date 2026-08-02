@@ -10,8 +10,8 @@ import { requireAuth } from "../middleware/auth";
 export const authRouter = Router();
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  nickname: z.string().min(1).max(20),
+  password: z.string().min(4),
 });
 
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -26,26 +26,26 @@ function setAuthCookie(res: import("express").Response, token: string) {
   });
 }
 
-function toAuthUser(user: { id: string; email: string; currency: number }): AuthUser {
-  return { id: user.id, email: user.email, currency: user.currency };
+function toAuthUser(user: { id: string; nickname: string; currency: number }): AuthUser {
+  return { id: user.id, nickname: user.nickname, currency: user.currency };
 }
 
 authRouter.post("/signup", async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "이메일 또는 비밀번호 형식이 올바르지 않습니다." });
+    res.status(400).json({ error: "닉네임 또는 비밀번호 형식이 올바르지 않습니다." });
     return;
   }
-  const { email, password } = parsed.data;
+  const { nickname, password } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { nickname } });
   if (existing) {
-    res.status(409).json({ error: "이미 가입된 이메일입니다." });
+    res.status(409).json({ error: "이미 사용 중인 닉네임입니다." });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { email, passwordHash } });
+  const user = await prisma.user.create({ data: { nickname, passwordHash } });
 
   const token = signToken({ userId: user.id });
   setAuthCookie(res, token);
@@ -57,15 +57,15 @@ authRouter.post("/signup", async (req, res) => {
 authRouter.post("/login", async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "이메일 또는 비밀번호 형식이 올바르지 않습니다." });
+    res.status(400).json({ error: "닉네임 또는 비밀번호 형식이 올바르지 않습니다." });
     return;
   }
-  const { email, password } = parsed.data;
+  const { nickname, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { nickname } });
   const isValid = user ? await bcrypt.compare(password, user.passwordHash) : false;
   if (!user || !isValid) {
-    res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
+    res.status(401).json({ error: "닉네임 또는 비밀번호가 일치하지 않습니다." });
     return;
   }
 

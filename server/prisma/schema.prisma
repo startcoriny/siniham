@@ -14,7 +14,7 @@ datasource db {
 
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
+  nickname     String   @unique
   passwordHash String
   currency     Int      @default(100)
   lastActiveAt DateTime @default(now())
