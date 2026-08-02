@@ -43,6 +43,11 @@ const HAMSTER_WIDTH_RATIO = 0.217;
 const HAMSTER_ON_WHEEL_RATIO = 0.143;
 // 스테이지를 아직 못 쟀을 때 쓸 기본값. PC 기준 폭이라 첫 페인트가 크게 어긋나지 않는다.
 const FALLBACK_STAGE_WIDTH = 736;
+
+// 쓰다듬을 때 떠오르는 하트가 사라지기까지의 시간. index.css의 애니메이션 길이와 맞춘다.
+const PET_HEART_MS = 1000;
+// 하트가 뜨는 높이(스테이지 높이 비율). 햄스터 머리 위에서 시작한다.
+const PET_HEART_RISE = 0.09;
 const WHEEL_SPIN_FRAMES = [wheelSpin1, wheelSpin2, wheelSpin3, wheelSpin4];
 
 // 가구를 보유하고 있을 때 햄스터가 스스로 하는 행동. 위에서부터 차례로 확률 구간을 차지한다.
@@ -124,6 +129,10 @@ export default function CagePage() {
   const [previewPosition, setPreviewPosition] = useState<{ x: number; y: number } | null>(null);
   const [activeWheelId, setActiveWheelId] = useState<string | null>(null);
   const [wheelFrameIndex, setWheelFrameIndex] = useState(0);
+  // 쓰다듬기 연출
+  const [petEffects, setPetEffects] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const [squishing, setSquishing] = useState(false);
+  const petEffectIdRef = useRef(0);
   // 스테이지 실제 폭. 모든 스프라이트 크기를 여기에 비례시켜 PC와 모바일의 비율을 맞춘다.
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageWidth, setStageWidth] = useState(FALLBACK_STAGE_WIDTH);
@@ -261,7 +270,35 @@ export default function CagePage() {
 
   if (!hamster) return null;
 
-  async function act(action: HamsterAction, nextBehavior: HamsterBehavior) {
+  // 햄스터를 직접 클릭하면 쓰다듬는다. 하트가 떠오르고 몸이 살짝 눌렸다 돌아온다.
+  function petByClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (editing || busy) return;
+
+    const id = petEffectIdRef.current;
+    petEffectIdRef.current += 1;
+    setPetEffects((current) => [
+      ...current,
+      { id, x: hamsterPositionRef.current.x, y: hamsterPositionRef.current.y },
+    ]);
+    window.setTimeout(() => {
+      setPetEffects((current) => current.filter((effect) => effect.id !== id));
+    }, PET_HEART_MS);
+
+    // 이미 재생 중이면 클래스를 한 번 뗐다 붙여야 애니메이션이 처음부터 다시 돈다.
+    setSquishing(false);
+    window.requestAnimationFrame(() => setSquishing(true));
+
+    void act("PET", "PET", { silent: true });
+  }
+
+  // silent는 햄스터를 직접 클릭해 쓰다듬을 때 쓴다. 연달아 누르면 토스트가 계속 쌓여서
+  // 하트 연출로만 알리고 성공 토스트는 생략한다. 오류는 그대로 알린다.
+  async function act(
+    action: HamsterAction,
+    nextBehavior: HamsterBehavior,
+    options?: { silent?: boolean },
+  ) {
     setBusy(true);
     const targetItem = cageItems.find((item) =>
       action === "FEED" ? item.itemId === "FOOD_BOWL"
@@ -280,7 +317,7 @@ export default function CagePage() {
     setBehavior(nextBehavior);
     try {
       await performHamsterAction(action);
-      showToast(`${hamster!.name}에게 잘 전해졌어요.`);
+      if (!options?.silent) showToast(`${hamster!.name}에게 잘 전해졌어요.`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "행동을 완료하지 못했어요.");
     } finally {
@@ -403,8 +440,11 @@ export default function CagePage() {
           })}
           <button
             type="button"
-            onClick={(event) => { event.stopPropagation(); if (!editing) setDetailOpen(true); }}
-            className="absolute -translate-x-1/2 -translate-y-1/2"
+            onClick={petByClick}
+            title={editing ? undefined : `${hamster.name} 쓰다듬기`}
+            aria-label={`${hamster.name} 쓰다듬기`}
+            disabled={editing}
+            className="absolute -translate-x-1/2 -translate-y-1/2 disabled:cursor-default"
             style={{
               left: `${hamsterPosition.x * 100}%`,
               top: `${hamsterPosition.y * 100}%`,
@@ -413,18 +453,39 @@ export default function CagePage() {
               transitionTimingFunction: "linear",
             }}
           >
-            <HamsterSprite
-              appearance={hamster.appearance}
-              behavior={behavior}
-              facing={facing}
-              size={Math.round(
-                (activeWheelId ? HAMSTER_ON_WHEEL_RATIO : HAMSTER_WIDTH_RATIO) * stageWidth,
-              )}
-              className={activeWheelId ? "animate-bounce" : ""}
-              // 쳇바퀴는 빠르게 달리는 연출이라 원래 속도로, 케이지 산책은 느긋하게 재생한다.
-              frameIntervalMs={activeWheelId ? 160 : 360}
-            />
+            {/* 버튼 자체에는 위치 이동용 transform이 걸려 있어 눌리는 연출은 안쪽에 따로 준다 */}
+            <div
+              className={squishing ? "animate-pet-squish" : ""}
+              onAnimationEnd={() => setSquishing(false)}
+            >
+              <HamsterSprite
+                appearance={hamster.appearance}
+                behavior={behavior}
+                facing={facing}
+                size={Math.round(
+                  (activeWheelId ? HAMSTER_ON_WHEEL_RATIO : HAMSTER_WIDTH_RATIO) * stageWidth,
+                )}
+                className={activeWheelId ? "animate-bounce" : ""}
+                // 쳇바퀴는 빠르게 달리는 연출이라 원래 속도로, 케이지 산책은 느긋하게 재생한다.
+                frameIntervalMs={activeWheelId ? 160 : 360}
+              />
+            </div>
           </button>
+          {petEffects.map((effect) => (
+            <span
+              key={effect.id}
+              aria-hidden
+              className="animate-heart-float pointer-events-none absolute select-none"
+              style={{
+                left: `${effect.x * 100}%`,
+                // 머리 위에서 떠오르게 한다. 위치 기준점에서 그대로 띄우면 얼굴을 가린다.
+                top: `${(effect.y - PET_HEART_RISE) * 100}%`,
+                fontSize: `${Math.round(HAMSTER_WIDTH_RATIO * stageWidth * 0.24)}px`,
+              }}
+            >
+              💗
+            </span>
+          ))}
           {activeWheelId && (
             <span
               className="absolute -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-xs font-semibold"
