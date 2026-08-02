@@ -7,7 +7,9 @@ export type ItemId =
   | "WATER_BOWL"
   | "HOUSE"
   | "WHEEL"
-  | "TUNNEL";
+  | "SAND_BATH"
+  | "SNACK_DISH"
+  | "LOOKOUT";
 
 export interface ItemMasterInfo {
   id: ItemId;
@@ -60,12 +62,26 @@ export const ITEM_MASTERS: Record<ItemId, ItemMasterInfo> = {
     purchasable: true,
     description: "햄스터가 신나게 달릴 수 있어요. 기분은 올라가지만 체력을 사용해요.",
   },
-  TUNNEL: {
-    id: "TUNNEL",
-    name: "터널",
-    cost: 150,
+  SAND_BATH: {
+    id: "SAND_BATH",
+    name: "모래목욕통",
+    cost: 120,
     purchasable: true,
-    description: "햄스터가 안으로 들어가 놀 수 있어요.",
+    description: "모래에 뒹굴며 스스로 몸을 씻어요. 청결이 조금씩 회복돼요.",
+  },
+  SNACK_DISH: {
+    id: "SNACK_DISH",
+    name: "해바라기씨 접시",
+    cost: 120,
+    purchasable: true,
+    description: "가끔 씨앗을 볼에 가득 채워요. 기분이 좋아져요.",
+  },
+  LOOKOUT: {
+    id: "LOOKOUT",
+    name: "전망대",
+    cost: 120,
+    purchasable: true,
+    description: "높은 곳에 올라가 케이지를 둘러봐요. 기분이 좋아져요.",
   },
 };
 

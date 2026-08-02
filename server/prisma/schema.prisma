@@ -22,6 +22,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // 자리를 비운 사이 정원에 일어난 변화를 모아뒀다가 "정원 소식" 모달로 한 번 보여주고 비운다.
+  pendingGrownCount Int       @default(0)
+  pendingWeedCount  Int       @default(0)
+  pendingSummaryFrom DateTime?
+
   cageItems     CageItem[]
   gardenPlots   GardenPlot[]
   missions      Mission[]
@@ -54,6 +59,8 @@ model Hamster {
   intimacy    Int               @default(0)
   growthStage String            @default("BABY")
   state       HamsterState      @default(IDLE)
+  // 케이지를 보는 동안 스스로 하는 행동(모래목욕, 쳇바퀴 등)의 마지막 시각. 연속 요청을 막는 쿨다운 기준.
+  lastIdleAt  DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -65,7 +72,9 @@ enum ItemId {
   WATER_BOWL
   HOUSE
   WHEEL
-  TUNNEL
+  SAND_BATH
+  SNACK_DISH
+  LOOKOUT
 }
 
 // 정적 참조 카탈로그. 5종 고정, seed.ts로 채운다.
@@ -106,6 +115,8 @@ model GardenPlot {
   status    PlotStatus @default(EMPTY)
   hasWeed   Boolean    @default(false)
   plantedAt DateTime?
+  // 다음 잡초가 자랄 시점을 재는 기준. 심을 때와 잡초를 뽑을 때 갱신한다.
+  weedFrom  DateTime?
 
   @@unique([userId, plotIndex])
 }

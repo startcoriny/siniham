@@ -1,7 +1,7 @@
 // 햄스터를 돌보고 가구를 배치하는 메인 케이지 화면.
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent } from "react";
-import type { HamsterAction, HamsterBehavior } from "@shared/types/hamster";
+import type { HamsterAction, HamsterBehavior, IdleActivityItemId } from "@shared/types/hamster";
 import { ITEM_MASTERS } from "@shared/types/cage";
 import HamsterSprite from "../components/hamster/HamsterSprite";
 import Modal from "../components/common/Modal";
@@ -9,12 +9,7 @@ import PixelButton from "../components/common/PixelButton";
 import StatusBar from "../components/common/StatusBar";
 import { useToast } from "../components/common/Toast";
 import { useGameState } from "../context/GameStateContext";
-import foodBowlImage from "../assets/cage-items/food-bowl.png";
-import houseImage from "../assets/cage-items/house.png";
-import waterBottleImage from "../assets/cage-items/water-bottle.png";
-import wheelImage from "../assets/cage-items/wheel.png";
-import handheldWaterBottleImage from "../assets/cage-items/handheld-water-bottle.png";
-import waterBowlImage from "../assets/cage-items/water-bowl.png";
+import { CAGE_ITEM_IMAGE } from "../lib/cageItemAssets";
 import wheelSpin1 from "../assets/cage-items/wheel-spin/frame-01.png";
 import wheelSpin2 from "../assets/cage-items/wheel-spin/frame-02.png";
 import wheelSpin3 from "../assets/cage-items/wheel-spin/frame-03.png";
@@ -24,24 +19,102 @@ const ACTIONS: Array<{ id: HamsterAction; label: string; behavior: HamsterBehavi
   { id: "FEED", label: "밥 주기", behavior: "EAT" },
   { id: "WATER", label: "물 주기", behavior: "DRINK" },
   { id: "PET", label: "쓰다듬기", behavior: "PET" },
-  { id: "CLEAN", label: "청소하기", behavior: "WASH" },
+  { id: "WASH", label: "세수하기", behavior: "WASH" },
 ];
 
+// 케이지에서의 표시 크기를 스테이지 폭 대비 비율로 둔다.
+// 화면 크기와 무관하게 햄스터와 가구의 비율이 같아야 PC와 모바일이 같은 장면으로 보인다.
+// (예전에는 가구만 반응형 px이고 햄스터는 160px 고정이라 모바일에서 햄스터만 커 보였다)
 const ITEM_ASSET = {
-  FOOD_BOWL: { src: foodBowlImage, width: "w-16 md:w-24" },
-  WATER_BOTTLE: { src: waterBottleImage, width: "w-14 md:w-20" },
-  HANDHELD_WATER_BOTTLE: { src: handheldWaterBottleImage, width: "w-12 md:w-16" },
-  WATER_BOWL: { src: waterBowlImage, width: "w-16 md:w-24" },
-  HOUSE: { src: houseImage, width: "w-24 md:w-36" },
-  WHEEL: { src: wheelImage, width: "w-28 md:w-44" },
+  FOOD_BOWL: { src: CAGE_ITEM_IMAGE.FOOD_BOWL, widthRatio: 0.13 },
+  WATER_BOTTLE: { src: CAGE_ITEM_IMAGE.WATER_BOTTLE, widthRatio: 0.109 },
+  HANDHELD_WATER_BOTTLE: { src: CAGE_ITEM_IMAGE.HANDHELD_WATER_BOTTLE, widthRatio: 0.087 },
+  WATER_BOWL: { src: CAGE_ITEM_IMAGE.WATER_BOWL, widthRatio: 0.13 },
+  HOUSE: { src: CAGE_ITEM_IMAGE.HOUSE, widthRatio: 0.196 },
+  WHEEL: { src: CAGE_ITEM_IMAGE.WHEEL, widthRatio: 0.239 },
+  // 햄스터가 안에 들어가 모래 위에 앉는다. 몸이 통 폭의 3분의 1 정도가 되도록 넉넉히 잡는다.
+  SAND_BATH: { src: CAGE_ITEM_IMAGE.SAND_BATH, widthRatio: 0.348 },
+  SNACK_DISH: { src: CAGE_ITEM_IMAGE.SNACK_DISH, widthRatio: 0.13 },
+  LOOKOUT: { src: CAGE_ITEM_IMAGE.LOOKOUT, widthRatio: 0.196 },
 } as const;
+
+// 햄스터 스프라이트 상자의 폭도 같은 기준으로 잡는다. 쳇바퀴 안에 들어갈 때만 작게 그린다.
+const HAMSTER_WIDTH_RATIO = 0.217;
+const HAMSTER_ON_WHEEL_RATIO = 0.143;
+// 스테이지를 아직 못 쟀을 때 쓸 기본값. PC 기준 폭이라 첫 페인트가 크게 어긋나지 않는다.
+const FALLBACK_STAGE_WIDTH = 736;
 const WHEEL_SPIN_FRAMES = [wheelSpin1, wheelSpin2, wheelSpin3, wheelSpin4];
 
+// 가구를 보유하고 있을 때 햄스터가 스스로 하는 행동. 위에서부터 차례로 확률 구간을 차지한다.
+// 확률을 낮게 둬서 "걷다가 가끔 뭘 한다"가 되게 한다. 5종을 다 가져도 한 번에 25%다.
+// offsetX/offsetY는 가구를 기준으로 햄스터가 설 자리다. 그림 위에 겹쳐 서지 않게 조정한다.
+const IDLE_ACTIVITIES: Array<{
+  itemId: IdleActivityItemId;
+  behavior: HamsterBehavior;
+  durationMs: number;
+  chance: number;
+  offsetX?: number;
+  offsetY?: number;
+}> = [
+  { itemId: "WHEEL", behavior: "WALK", durationMs: 3000, chance: 0.05, offsetY: 0.04 },
+  // 집 안으로 사라지는 대신 집 앞에 자리를 잡고 잔다. 집은 보통 위쪽에 놓여 있어 아래로 넉넉히 내린다.
+  { itemId: "HOUSE", behavior: "SLEEP", durationMs: 3600, chance: 0.05, offsetX: 0.03, offsetY: 0.16 },
+  // 통 앞이 아니라 안에 들어가 모래 위에 앉는다. 발이 모래면에 닿도록 위로 올린다.
+  { itemId: "SAND_BATH", behavior: "WASH", durationMs: 2800, chance: 0.05, offsetY: -0.19 },
+  { itemId: "SNACK_DISH", behavior: "CHEEK", durationMs: 2600, chance: 0.05, offsetY: 0.02 },
+  { itemId: "LOOKOUT", behavior: "LOOK", durationMs: 2800, chance: 0.05, offsetY: 0.04 },
+];
+
+// 가구 행동 뒤에는 최소 이만큼의 걷기/쉬기가 지나야 다시 가구로 간다. 연속으로 몰리는 걸 막는다.
+const ACTIVITY_MIN_GAP = 2;
+// 동작과 동작 사이에 서 있는 시간
+const PAUSE_MIN_MS = 2000;
+const PAUSE_RANGE_MS = 3000;
+// 걷지 않고 제자리에서 쉬기만 하는 비율과 그 길이.
+// 쉬기가 연달아 나오면 10초 넘게 멈춰 있어 고장 난 것처럼 보이므로 연속으로는 한 번만 허용한다.
+const REST_CHANCE = 0.3;
+const REST_MIN_MS = 1600;
+const REST_RANGE_MS = 1600;
+
+// 케이지 폭 기준 이동 속도(ms당 비율). 거리에 비례해 시간을 정해야 속도가 일정해 보인다.
+const WALK_SPEED_PER_MS = 0.00014;
+const MIN_WALK_MS = 1100;
+const MAX_WALK_MS = 4200;
+// 스테이지가 가로로 길어 세로 이동은 체감 거리가 짧다. 시간 계산에서 가중치를 낮춘다.
+const STAGE_Y_WEIGHT = 0.7;
+
+interface StagePoint {
+  x: number;
+  y: number;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function walkDurationMs(from: StagePoint, to: StagePoint) {
+  const distance = Math.hypot(to.x - from.x, (to.y - from.y) * STAGE_Y_WEIGHT);
+  return clamp(Math.round(distance / WALK_SPEED_PER_MS), MIN_WALK_MS, MAX_WALK_MS);
+}
+
+// 케이지를 가로지르지 않고 지금 자리에서 조금씩 옮겨 다니게 한다. 가장자리에서는 안쪽으로 돈다.
+function wanderTarget(from: StagePoint): StagePoint {
+  let directionX = Math.random() < 0.5 ? -1 : 1;
+  if (from.x < 0.3) directionX = 1;
+  if (from.x > 0.7) directionX = -1;
+  return {
+    x: clamp(from.x + directionX * (0.14 + Math.random() * 0.24), 0.18, 0.82),
+    y: clamp(from.y + (Math.random() - 0.5) * 0.12, 0.52, 0.78),
+  };
+}
+
 export default function CagePage() {
-  const { hamster, cageItems, performHamsterAction, moveCageItem } = useGameState();
+  const { hamster, cageItems, performHamsterAction, performIdleActivity, moveCageItem } = useGameState();
   const { showToast } = useToast();
   const [behavior, setBehavior] = useState<HamsterBehavior>("IDLE");
-  const [hamsterPosition, setHamsterPosition] = useState({ x: 0.5, y: 0.68 });
+  const [hamsterPosition, setHamsterPosition] = useState<StagePoint>({ x: 0.5, y: 0.68 });
+  // 이동 거리에 따라 매번 달라진다. 스프라이트의 CSS 전환 시간에 그대로 쓴다.
+  const [moveDurationMs, setMoveDurationMs] = useState(MIN_WALK_MS);
   const [facing, setFacing] = useState<"left" | "right">("right");
   const [busy, setBusy] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -50,9 +123,22 @@ export default function CagePage() {
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const [previewPosition, setPreviewPosition] = useState<{ x: number; y: number } | null>(null);
   const [activeWheelId, setActiveWheelId] = useState<string | null>(null);
-  const [isInHouse, setIsInHouse] = useState(false);
-  const [houseActivityPosition, setHouseActivityPosition] = useState<{ x: number; y: number } | null>(null);
   const [wheelFrameIndex, setWheelFrameIndex] = useState(0);
+  // 스테이지 실제 폭. 모든 스프라이트 크기를 여기에 비례시켜 PC와 모바일의 비율을 맞춘다.
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [stageWidth, setStageWidth] = useState(FALLBACK_STAGE_WIDTH);
+
+  // 첫 페인트 전에 재야 큰 크기로 그렸다가 줄어드는 깜빡임이 없다.
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    setStageWidth(stage.clientWidth);
+    const observer = new ResizeObserver(([entry]) => {
+      setStageWidth(entry.contentRect.width);
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!activeWheelId) {
@@ -65,6 +151,27 @@ export default function CagePage() {
     return () => window.clearInterval(timer);
   }, [activeWheelId]);
 
+  // 자율 행동을 서버에 보고하면 상태가 새로 내려와 cageItems의 참조가 바뀐다. 그걸 그대로 의존성에 두면
+  // 연출 루프가 매번 처음부터 다시 시작하므로, 배치가 실제로 바뀐 경우에만 재시작하도록 키로 비교한다.
+  const cageItemsRef = useRef(cageItems);
+  const cageLayoutKey = cageItems
+    .map((item) => `${item.id}:${item.itemId}:${item.posX}:${item.posY}`)
+    .join("|");
+
+  useEffect(() => {
+    cageItemsRef.current = cageItems;
+  }, [cageItems]);
+
+  // 타이머 콜백에서 현재 위치를 읽어야 이동 거리를 계산할 수 있다.
+  const hamsterPositionRef = useRef(hamsterPosition);
+  useEffect(() => {
+    hamsterPositionRef.current = hamsterPosition;
+  }, [hamsterPosition]);
+
+  // 가구 행동 이후 지나간 평범한 사이클 수. 연출이 다시 시작돼도 유지되도록 ref에 둔다.
+  const cyclesSinceActivityRef = useRef(ACTIVITY_MIN_GAP);
+  const restedLastCycleRef = useRef(false);
+
   useEffect(() => {
     if (busy || editing || detailOpen) return;
     const timers: number[] = [];
@@ -74,66 +181,83 @@ export default function CagePage() {
       timers.push(timer);
     }
 
-    function walkTo(target: { x: number; y: number }, onArrive: () => void) {
-      setHamsterPosition((current) => {
-        setFacing(target.x < current.x ? "left" : "right");
-        return target;
-      });
+    function walkTo(target: StagePoint, onArrive: () => void) {
+      const from = hamsterPositionRef.current;
+      const duration = walkDurationMs(from, target);
+      setFacing(target.x < from.x ? "left" : "right");
+      setMoveDurationMs(duration);
+      setHamsterPosition(target);
       setBehavior("WALK");
-      later(onArrive, 1100);
+      // 도착하자마자 다음 동작으로 넘어가면 급해 보여서 잠시 멈춘 뒤 이어간다.
+      later(onArrive, duration + 300);
+    }
+
+    // 연출이 끝나면 서버에 알려 수치와 행동 도감에 반영한다. 실패해도 화면은 계속 돌아간다.
+    function reportActivity(itemId: IdleActivityItemId) {
+      performIdleActivity(itemId).catch(() => {});
     }
 
     function scheduleWalk() {
       later(() => {
-        const wheel = cageItems.find((item) => item.itemId === "WHEEL");
-        const house = cageItems.find((item) => item.itemId === "HOUSE");
         const activityRoll = Math.random();
+        let threshold = 0;
+        // 방금 가구를 썼으면 이번 사이클은 걷기/쉬기만 한다.
+        const canUseFurniture = cyclesSinceActivityRef.current >= ACTIVITY_MIN_GAP;
 
-        if (wheel && activityRoll < 0.2) {
-          walkTo({ x: wheel.posX, y: Math.min(0.8, wheel.posY + 0.04) }, () => {
-            setActiveWheelId(wheel.id);
-            setBehavior("WALK");
+        for (const activity of canUseFurniture ? IDLE_ACTIVITIES : []) {
+          const item = cageItemsRef.current.find((candidate) => candidate.itemId === activity.itemId);
+          // 보유한 가구만 확률 구간을 차지한다. 하나만 있어도 그 행동이 제 확률대로 나온다.
+          if (!item) continue;
+          threshold += activity.chance;
+          if (activityRoll >= threshold) continue;
+
+          cyclesSinceActivityRef.current = 0;
+
+          // 가구는 위쪽(벽 쪽)에도 놓을 수 있으므로 산책 범위(0.5~0.78)보다 위까지 갈 수 있게 둔다.
+          const spot = {
+            x: clamp(item.posX + (activity.offsetX ?? 0), 0.18, 0.82),
+            y: clamp(item.posY + (activity.offsetY ?? 0), 0.35, 0.8),
+          };
+          walkTo(spot, () => {
+            if (activity.itemId === "WHEEL") setActiveWheelId(item.id);
+            setBehavior(activity.behavior);
             later(() => {
               setActiveWheelId(null);
               setBehavior("IDLE");
+              reportActivity(activity.itemId);
               scheduleWalk();
-            }, 2600);
+            }, activity.durationMs);
           });
           return;
         }
 
-        if (house && activityRoll < 0.4) {
-          walkTo({ x: house.posX, y: Math.min(0.82, house.posY + 0.08) }, () => {
-            setHouseActivityPosition({ x: house.posX, y: house.posY });
-            setIsInHouse(true);
-            setBehavior("SLEEP");
-            later(() => {
-              setIsInHouse(false);
-              setHouseActivityPosition(null);
-              setBehavior("IDLE");
-              setHamsterPosition({ x: Math.min(0.84, house.posX + 0.15), y: Math.min(0.82, house.posY + 0.12) });
-              scheduleWalk();
-            }, 3000);
-          });
+        cyclesSinceActivityRef.current += 1;
+
+        // 매번 걷지는 않는다. 가끔은 그냥 그 자리에 서서 쉰다.
+        if (!restedLastCycleRef.current && Math.random() < REST_CHANCE) {
+          restedLastCycleRef.current = true;
+          setBehavior("IDLE");
+          later(scheduleWalk, REST_MIN_MS + Math.random() * REST_RANGE_MS);
           return;
         }
 
-        const target = { x: 0.18 + Math.random() * 0.64, y: 0.5 + Math.random() * 0.28 };
-        walkTo(target, () => {
+        restedLastCycleRef.current = false;
+        walkTo(wanderTarget(hamsterPositionRef.current), () => {
           setBehavior("IDLE");
           scheduleWalk();
         });
-      }, 500 + Math.random() * 900);
+      }, PAUSE_MIN_MS + Math.random() * PAUSE_RANGE_MS);
     }
 
     scheduleWalk();
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
       setActiveWheelId(null);
-      setIsInHouse(false);
-      setHouseActivityPosition(null);
     };
-  }, [busy, cageItems, detailOpen, editing]);
+    // cageItems와 performIdleActivity는 매번 새 참조라 의존성에 넣으면 연출이 끊긴다.
+    // 배치 변경은 cageLayoutKey로, 최신 목록은 cageItemsRef로 받는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, cageLayoutKey, detailOpen, editing]);
 
   if (!hamster) return null;
 
@@ -145,10 +269,13 @@ export default function CagePage() {
       : false,
     );
     if (targetItem) {
+      const target = { x: targetItem.posX, y: Math.min(0.82, targetItem.posY + 0.12) };
+      const duration = walkDurationMs(hamsterPosition, target);
       setBehavior("WALK");
-      setFacing(targetItem.posX < hamsterPosition.x ? "left" : "right");
-      setHamsterPosition({ x: targetItem.posX, y: Math.min(0.82, targetItem.posY + 0.12) });
-      await new Promise((resolve) => window.setTimeout(resolve, 900));
+      setFacing(target.x < hamsterPosition.x ? "left" : "right");
+      setMoveDurationMs(duration);
+      setHamsterPosition(target);
+      await new Promise((resolve) => window.setTimeout(resolve, duration));
     }
     setBehavior(nextBehavior);
     try {
@@ -157,11 +284,11 @@ export default function CagePage() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : "행동을 완료하지 못했어요.");
     } finally {
+      // 가운데로 되돌리지 않는다. 있던 자리에 그대로 두면 이어지는 자율 행동이 자연스럽다.
       window.setTimeout(() => {
         setBehavior("IDLE");
-        setHamsterPosition({ x: 0.5, y: 0.68 });
         setBusy(false);
-      }, 900);
+      }, 1200);
     }
   }
 
@@ -206,7 +333,8 @@ export default function CagePage() {
   const activeWheel = cageItems.find((item) => item.id === activeWheelId);
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 md:p-6">
-      <section className="grid gap-4 rounded-2xl bg-card p-4 shadow-sm md:grid-cols-[240px_1fr]">
+      {/* 좌우 분할을 md(768px)에서 하면 좌측 메뉴까지 겹쳐 케이지가 300px 아래로 줄어든다. lg부터 나눈다 */}
+      <section className="grid gap-4 rounded-2xl bg-card p-4 shadow-sm lg:grid-cols-[220px_1fr]">
         <div className="space-y-2">
           <button type="button" onClick={() => setDetailOpen(true)} className="mb-2 text-left">
             <strong className="text-xl">{hamster.name}</strong>
@@ -219,11 +347,13 @@ export default function CagePage() {
         </div>
 
         <div
+          ref={stageRef}
           onClick={placeItem}
           onPointerMove={dragItem}
           onPointerUp={finishDrag}
           onPointerCancel={() => { setDraggingItemId(null); setPreviewPosition(null); }}
-          className={`relative aspect-[10/7] min-h-72 overflow-hidden rounded-2xl border-4 border-brown/20 bg-[linear-gradient(#d9f0c4_0_58%,#e7c58c_58%)] ${editing ? "cursor-crosshair" : ""}`}
+          // min-h를 두면 좁은 화면에서 10:7 비율이 깨져 위치 계산과 어긋난다.
+          className={`relative aspect-[10/7] overflow-hidden rounded-2xl border-4 border-brown/20 bg-[linear-gradient(#d9f0c4_0_58%,#e7c58c_58%)] ${editing ? "cursor-crosshair" : ""}`}
         >
           {cageItems.map((item) => {
             const itemAsset = item.itemId in ITEM_ASSET
@@ -259,8 +389,11 @@ export default function CagePage() {
                 <img
                   src={assetSrc}
                   alt={ITEM_MASTERS[item.itemId].name}
-                  className={`h-auto max-w-none ${itemAsset.width}`}
-                  style={{ imageRendering: "pixelated" }}
+                  className="h-auto max-w-none"
+                  style={{
+                    width: `${itemAsset.widthRatio * stageWidth}px`,
+                    imageRendering: "pixelated",
+                  }}
                 />
               ) : (
                 <span className="text-4xl md:text-6xl">🪵</span>
@@ -271,15 +404,25 @@ export default function CagePage() {
           <button
             type="button"
             onClick={(event) => { event.stopPropagation(); if (!editing) setDetailOpen(true); }}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-[850ms] ${isInHouse ? "pointer-events-none opacity-0" : "opacity-100"}`}
-            style={{ left: `${hamsterPosition.x * 100}%`, top: `${hamsterPosition.y * 100}%` }}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={{
+              left: `${hamsterPosition.x * 100}%`,
+              top: `${hamsterPosition.y * 100}%`,
+              transitionProperty: "left, top",
+              transitionDuration: `${moveDurationMs}ms`,
+              transitionTimingFunction: "linear",
+            }}
           >
             <HamsterSprite
               appearance={hamster.appearance}
               behavior={behavior}
               facing={facing}
-              size={activeWheelId ? 105 : 160}
+              size={Math.round(
+                (activeWheelId ? HAMSTER_ON_WHEEL_RATIO : HAMSTER_WIDTH_RATIO) * stageWidth,
+              )}
               className={activeWheelId ? "animate-bounce" : ""}
+              // 쳇바퀴는 빠르게 달리는 연출이라 원래 속도로, 케이지 산책은 느긋하게 재생한다.
+              frameIntervalMs={activeWheelId ? 160 : 360}
             />
           </button>
           {activeWheelId && (
@@ -288,14 +431,6 @@ export default function CagePage() {
               style={{ left: `${(activeWheel?.posX ?? 0.5) * 100}%`, top: `${Math.max(0.1, (activeWheel?.posY ?? 0.7) - 0.2) * 100}%` }}
             >
               쳇바퀴 타는 중
-            </span>
-          )}
-          {isInHouse && houseActivityPosition && (
-            <span
-              className="absolute -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-sm font-bold"
-              style={{ left: `${houseActivityPosition.x * 100}%`, top: `${Math.max(0.08, houseActivityPosition.y - 0.18) * 100}%` }}
-            >
-              Z z z
             </span>
           )}
           {editing && (

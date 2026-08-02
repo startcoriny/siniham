@@ -2,6 +2,7 @@
 import type { ItemMasterInfo } from "@shared/types/cage";
 import PixelCard from "../common/PixelCard";
 import PixelButton from "../common/PixelButton";
+import { CAGE_ITEM_IMAGE } from "../../lib/cageItemAssets";
 
 interface ShopItemCardProps {
   item: ItemMasterInfo;
@@ -12,8 +13,13 @@ interface ShopItemCardProps {
 export default function ShopItemCard({ item, owned, onSelect }: ShopItemCardProps) {
   return (
     <PixelCard className="flex flex-col gap-3">
-      <div className="flex h-24 items-center justify-center rounded-xl bg-cream text-sm text-brown/40">
-        {item.name}
+      <div className="flex h-28 items-center justify-center rounded-xl bg-cream p-2">
+        <img
+          src={CAGE_ITEM_IMAGE[item.id]}
+          alt=""
+          className="max-h-full max-w-[60%] object-contain"
+          style={{ imageRendering: "pixelated" }}
+        />
       </div>
       <div>
         <p className="font-semibold text-brown">{item.name}</p>

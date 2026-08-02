@@ -5,6 +5,7 @@ import { MISSIONS } from "@shared/types/mission";
 import type { HamsterBehavior } from "@shared/types/hamster";
 import { BEHAVIOR_INFO } from "@shared/types/behavior";
 import MissionCard from "../components/collection/MissionCard";
+import MissionSummary from "../components/collection/MissionSummary";
 import BehaviorCard from "../components/collection/BehaviorCard";
 import { useGameState } from "../context/GameStateContext";
 import { useToast } from "../components/common/Toast";
@@ -16,8 +17,11 @@ const BEHAVIOR_IDS = Object.keys(BEHAVIOR_INFO) as HamsterBehavior[];
 
 export default function CollectionPage() {
   const [subTab, setSubTab] = useState<SubTab>("mission");
-  const { missionProgress, claimMissionReward, discoveredBehaviors } = useGameState();
+  const { missionProgress, missionResetInMs, claimMissionReward, discoveredBehaviors } = useGameState();
   const { showToast } = useToast();
+
+  // 보상을 아직 받지 않은 미션이 오늘 남은 미션이다.
+  const remainingMissionCount = MISSION_IDS.filter((id) => !missionProgress[id]?.claimed).length;
 
   async function handleClaim(missionId: MissionId) {
     try {
@@ -53,6 +57,7 @@ export default function CollectionPage() {
 
       {subTab === "mission" ? (
         <div className="flex flex-col gap-3">
+          <MissionSummary remainingCount={remainingMissionCount} resetInMs={missionResetInMs} />
           {MISSION_IDS.map((id) => (
             <MissionCard
               key={id}

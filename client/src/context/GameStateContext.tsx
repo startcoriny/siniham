@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { ItemId } from "@shared/types/cage";
 import type { MissionId } from "@shared/types/mission";
 import type { HamsterBehavior } from "@shared/types/hamster";
-import type { CreateHamsterRequest, HamsterAction } from "@shared/types/hamster";
+import type { CreateHamsterRequest, HamsterAction, IdleActivityItemId } from "@shared/types/hamster";
 import type { GameStateResponse } from "@shared/types/gameState";
 import * as gameApi from "../lib/gameApi";
 import { useAuth } from "./AuthContext";
@@ -17,10 +17,12 @@ interface GameStateContextValue {
   plantSeed: (plotId: number) => Promise<void>;
   removeWeed: (plotId: number) => Promise<void>;
   harvestPlot: (plotId: number) => Promise<void>;
+  ackGardenSummary: () => Promise<void>;
   claimMissionReward: (missionId: MissionId) => Promise<void>;
   discoverBehavior: (behaviorId: HamsterBehavior) => Promise<void>;
   createHamster: (input: CreateHamsterRequest) => Promise<void>;
   performHamsterAction: (action: HamsterAction) => Promise<void>;
+  performIdleActivity: (itemId: IdleActivityItemId) => Promise<void>;
   moveCageItem: (itemId: string, posX: number, posY: number) => Promise<void>;
 }
 
@@ -61,6 +63,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(await gameApi.harvestPlot(plotId));
   }
 
+  async function ackGardenSummary() {
+    setState(await gameApi.ackGardenSummary());
+  }
+
   async function claimMissionReward(missionId: MissionId) {
     setState(await gameApi.claimMissionReward(missionId));
   }
@@ -77,6 +83,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(await gameApi.performHamsterAction(action));
   }
 
+  async function performIdleActivity(itemId: IdleActivityItemId) {
+    setState(await gameApi.performIdleActivity(itemId));
+  }
+
   async function moveCageItem(itemId: string, posX: number, posY: number) {
     setState(await gameApi.moveCageItem(itemId, posX, posY));
   }
@@ -91,10 +101,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         plantSeed,
         removeWeed,
         harvestPlot,
+        ackGardenSummary,
         claimMissionReward,
         discoverBehavior,
         createHamster,
         performHamsterAction,
+        performIdleActivity,
         moveCageItem,
       }}
     >
@@ -129,10 +141,12 @@ export function useGameState() {
     plantSeed: ctx.plantSeed,
     removeWeed: ctx.removeWeed,
     harvestPlot: ctx.harvestPlot,
+    ackGardenSummary: ctx.ackGardenSummary,
     claimMissionReward: ctx.claimMissionReward,
     discoverBehavior: ctx.discoverBehavior,
     createHamster: ctx.createHamster,
     performHamsterAction: ctx.performHamsterAction,
+    performIdleActivity: ctx.performIdleActivity,
     moveCageItem: ctx.moveCageItem,
     refresh: ctx.refresh,
   };

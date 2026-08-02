@@ -44,6 +44,13 @@ export function getHamsterSpriteVariants(
     .map(([, url]) => url);
 }
 
+// 눈 감은 그림. 일정 간격으로 도는 프레임이 아니라 "오래 뜨고 잠깐 감는" 리듬이라 따로 다룬다.
+// 파일명이 어떤 행동 접두어와도 겹치지 않아 getHamsterSpriteVariants에는 걸리지 않는다.
+export function getHamsterBlinkSrc(appearance: HamsterAppearance): string | undefined {
+  const folder = HAMSTER_APPEARANCES[appearance].folder;
+  return spriteModules[`/src/assets/hamsters/${folder}/blink.png`];
+}
+
 export function getHamsterSpriteSrc(
   appearance: HamsterAppearance,
   behavior: HamsterBehavior,

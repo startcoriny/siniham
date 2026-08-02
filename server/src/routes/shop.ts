@@ -5,7 +5,7 @@ import { ITEM_MASTERS } from "@shared/types/cage";
 import type { ItemId } from "@shared/types/cage";
 import { requireAuth } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
-import { serializeState } from "../lib/gameState";
+import { pickFreeSlot, serializeState } from "../lib/gameState";
 
 export const shopRouter = Router();
 
@@ -28,11 +28,12 @@ shopRouter.post("/purchase", requireAuth, async (req, res) => {
   }
 
   const userId = req.userId!;
-  const [user, owned] = await Promise.all([
+  const [user, owned, placed] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: userId } }),
     prisma.cageItem.findUnique({
       where: { userId_itemMasterId: { userId, itemMasterId: itemId } },
     }),
+    prisma.cageItem.findMany({ where: { userId }, select: { posX: true, posY: true } }),
   ]);
 
   if (owned) {
@@ -44,9 +45,11 @@ shopRouter.post("/purchase", requireAuth, async (req, res) => {
     return;
   }
 
+  // 기본 좌표에 그대로 두면 여러 개를 살 때 케이지 한가운데 겹쳐 쌓인다.
+  const slot = pickFreeSlot(placed);
   await prisma.$transaction([
     prisma.user.update({ where: { id: userId }, data: { currency: { decrement: item.cost } } }),
-    prisma.cageItem.create({ data: { userId, itemMasterId: itemId } }),
+    prisma.cageItem.create({ data: { userId, itemMasterId: itemId, ...slot } }),
   ]);
 
   res.status(200).json(await serializeState(userId));

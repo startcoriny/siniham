@@ -9,25 +9,24 @@ import PixelButton from "../components/common/PixelButton";
 import { useGameState } from "../context/GameStateContext";
 import { useToast } from "../components/common/Toast";
 
-const OFFLINE_SUMMARY_KEY = "siniham-offline-summary-shown-date";
 // 서버가 lazy-tick으로 성장을 계산하므로, 화면에 머무는 동안 주기적으로 다시 불러와 반영한다.
 const REFRESH_INTERVAL_MS = 30_000;
 
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+// "3일 전부터" 처럼 자리를 비운 기간을 사람이 읽는 표현으로 바꾼다.
+function formatAwayPeriod(since: string | null): string {
+  if (!since) return "자리를 비운 사이";
+  const elapsedMs = Date.now() - new Date(since).getTime();
+  const hours = Math.floor(elapsedMs / 3_600_000);
+  if (hours < 1) return "잠시 자리를 비운 사이";
+  if (hours < 24) return `${hours}시간 만에 와보니`;
+  return `${Math.floor(hours / 24)}일 만에 와보니`;
 }
 
 export default function GardenPage() {
-  const { gardenPlots, seedCount, plantSeed, removeWeed, harvestPlot, refresh } = useGameState();
+  const { gardenPlots, seedCount, gardenSummary, plantSeed, removeWeed, harvestPlot, ackGardenSummary, refresh } =
+    useGameState();
   const { showToast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [showOfflineSummary, setShowOfflineSummary] = useState(false);
-
-  useEffect(() => {
-    if (localStorage.getItem(OFFLINE_SUMMARY_KEY) !== todayKey()) {
-      setShowOfflineSummary(true);
-    }
-  }, []);
 
   useEffect(() => {
     const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
@@ -35,9 +34,12 @@ export default function GardenPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function closeOfflineSummary() {
-    localStorage.setItem(OFFLINE_SUMMARY_KEY, todayKey());
-    setShowOfflineSummary(false);
+  async function closeOfflineSummary() {
+    try {
+      await ackGardenSummary();
+    } catch {
+      // 확인 처리에 실패해도 화면을 막지 않는다. 다음 조회 때 다시 안내된다.
+    }
   }
 
   const selectedPlot = gardenPlots.find((p) => p.id === selectedId) ?? null;
@@ -102,11 +104,19 @@ export default function GardenPage() {
         onHarvest={handleHarvest}
       />
 
-      <Modal open={showOfflineSummary} onClose={closeOfflineSummary} title="정원 소식">
+      <Modal open={gardenSummary !== null} onClose={closeOfflineSummary} title="정원 소식">
         <p className="mb-4 text-brown">
-          밤사이 정원에 변화가 있었어요.
-          <br />- 당근 2개가 다 자랐어요.
-          <br />- 1번 밭에 잡초가 생겼어요.
+          {formatAwayPeriod(gardenSummary?.since ?? null)} 정원에 변화가 있었어요.
+          {gardenSummary && gardenSummary.grownCount > 0 && (
+            <>
+              <br />- 작물 {gardenSummary.grownCount}개가 다 자랐어요.
+            </>
+          )}
+          {gardenSummary && gardenSummary.weedCount > 0 && (
+            <>
+              <br />- 밭 {gardenSummary.weedCount}곳에 잡초가 생겼어요.
+            </>
+          )}
         </p>
         <PixelButton onClick={closeOfflineSummary} className="w-full">
           확인

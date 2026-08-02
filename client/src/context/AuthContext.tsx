@@ -2,7 +2,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { AuthUser } from "@shared/types/auth";
-import { fetchMe, login as apiLogin, logout as apiLogout, signup as apiSignup } from "../lib/api";
+import {
+  deleteAccount as apiDeleteAccount,
+  fetchMe,
+  login as apiLogin,
+  logout as apiLogout,
+  signup as apiSignup,
+} from "../lib/api";
 
 interface AuthContextValue {
   nickname: string | null;
@@ -10,6 +16,7 @@ interface AuthContextValue {
   login: (nickname: string, password: string) => Promise<void>;
   signup: (nickname: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -40,8 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  async function deleteAccount() {
+    await apiDeleteAccount();
+    setUser(null);
+  }
+
   return (
-    <AuthContext.Provider value={{ nickname: user?.nickname ?? null, isLoading, login, signup, logout }}>
+    <AuthContext.Provider
+      value={{ nickname: user?.nickname ?? null, isLoading, login, signup, logout, deleteAccount }}
+    >
       {children}
     </AuthContext.Provider>
   );
