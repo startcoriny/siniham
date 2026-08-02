@@ -6,6 +6,7 @@ import type { AuthResponse, AuthUser } from "@shared/types/auth";
 import { prisma } from "../lib/prisma";
 import { AUTH_COOKIE_NAME, signToken } from "../lib/jwt";
 import { requireAuth } from "../middleware/auth";
+import { initializeStarterData } from "../lib/gameState";
 
 export const authRouter = Router();
 
@@ -46,6 +47,7 @@ authRouter.post("/signup", async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({ data: { nickname, passwordHash } });
+  await initializeStarterData(user.id);
 
   const token = signToken({ userId: user.id });
   setAuthCookie(res, token);

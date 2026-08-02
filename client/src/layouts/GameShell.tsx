@@ -2,8 +2,9 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import SideMenu from "../components/common/SideMenu";
 import BottomTabBar from "../components/common/BottomTabBar";
+import LoadingHamster from "../components/common/LoadingHamster";
 import { useAuth } from "../context/AuthContext";
-import { useGameState } from "../context/GameStateContext";
+import { useGameState, useGameStateStatus } from "../context/GameStateContext";
 
 const NAV_ITEMS = [
   { id: "cage", label: "케이지" },
@@ -13,6 +14,16 @@ const NAV_ITEMS = [
 ];
 
 export default function GameShell() {
+  const { isReady } = useGameStateStatus();
+
+  if (!isReady) {
+    return <LoadingHamster message="정보를 불러오는 중이에요" />;
+  }
+
+  return <GameShellContent />;
+}
+
+function GameShellContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { nickname } = useAuth();

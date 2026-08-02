@@ -1,224 +1,82 @@
-// 목업 게임 상태. 재화 + 보유 아이템 + 미션 진행도 + 정원. 이후 단계(케이지)에서 필드 확장
-import { createContext, useContext, useState } from "react";
+// 실제 게임 상태. 로그인되면 /api/state로 불러오고, 각 액션은 서버 API를 호출해 최신 상태로 교체한다.
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { ItemId } from "@shared/types/cage";
-import { ITEM_MASTERS, STARTER_ITEM_IDS } from "@shared/types/cage";
-import type { MissionId, MissionProgressState } from "@shared/types/mission";
-import { MISSIONS } from "@shared/types/mission";
-import type { GardenPlot } from "@shared/types/garden";
-import { HARVEST_REWARD } from "@shared/types/garden";
+import type { MissionId } from "@shared/types/mission";
 import type { HamsterBehavior } from "@shared/types/hamster";
+import type { GameStateResponse } from "@shared/types/gameState";
+import * as gameApi from "../lib/gameApi";
+import { useAuth } from "./AuthContext";
 
-const STORAGE_KEY = "siniham-mock-game-state";
-const STARTER_CURRENCY = 100;
-
-// 실제 lazy-tick(경과 시간 기반 성장)이 없어 데모용으로 짧게 잡은 목업 성장 시간.
-// 10단계(실제 API 연결)에서 product-plan.md의 실제 값으로 교체.
-export const MOCK_GROW_DURATION_MS = 10_000;
-
-// 아직 케이지/정원 화면이 없어 실제 행동으로 진행도가 안 쌓인다.
-// 미션 카드의 상태(진행중/완료대기/수령완료)를 전부 보여주기 위한 임시 시연용 초기값.
-const DEMO_MISSION_PROGRESS: Record<MissionId, MissionProgressState> = {
-  FEED: { progress: 2, claimed: false },
-  WATER: { progress: 1, claimed: false },
-  PET: { progress: 0, claimed: false },
-  GARDEN: { progress: 1, claimed: true },
-};
-
-// 정원 4구획 상태(빈밭/성장중/수확가능/잡초있음)를 한 화면에서 다 보여주기 위한 시연용 초기값.
-const DEMO_GARDEN_PLOTS: GardenPlot[] = [
-  { id: 0, status: "EMPTY", hasWeed: false, plantedAt: null },
-  { id: 1, status: "GROWING", hasWeed: false, plantedAt: Date.now() },
-  { id: 2, status: "READY", hasWeed: false, plantedAt: Date.now() - MOCK_GROW_DURATION_MS },
-  { id: 3, status: "GROWING", hasWeed: true, plantedAt: Date.now() },
-];
-
-// 케이지가 없어 실제 행동으로 발견되지 않는다. 자주 보일 법한 행동 3개만 미리 발견된 상태로 시작.
-const DEMO_DISCOVERED_BEHAVIORS: Partial<Record<HamsterBehavior, string>> = {
-  IDLE: "2026-08-01",
-  WALK: "2026-08-01",
-  EAT: "2026-08-01",
-};
-
-interface GameState {
-  currency: number;
-  ownedItemIds: ItemId[];
-  missionProgress: Record<MissionId, MissionProgressState>;
-  gardenPlots: GardenPlot[];
-  seedCount: number;
-  discoveredBehaviors: Partial<Record<HamsterBehavior, string>>;
-}
-
-interface GameStateContextValue extends GameState {
-  spendCurrency: (amount: number) => boolean;
-  addCurrency: (amount: number) => void;
-  purchaseItem: (itemId: ItemId) => boolean;
-  claimMissionReward: (missionId: MissionId) => boolean;
-  plantSeed: (plotId: number) => boolean;
-  removeWeed: (plotId: number) => boolean;
-  harvestPlot: (plotId: number) => boolean;
-  tickGardenGrowth: () => void;
-  discoverBehavior: (behaviorId: HamsterBehavior) => boolean;
-  resetGameState: () => void;
+interface GameStateContextValue {
+  state: GameStateResponse | null;
+  isLoading: boolean;
+  refresh: () => Promise<void>;
+  purchaseItem: (itemId: ItemId) => Promise<void>;
+  plantSeed: (plotId: number) => Promise<void>;
+  removeWeed: (plotId: number) => Promise<void>;
+  harvestPlot: (plotId: number) => Promise<void>;
+  claimMissionReward: (missionId: MissionId) => Promise<void>;
+  discoverBehavior: (behaviorId: HamsterBehavior) => Promise<void>;
 }
 
 const GameStateContext = createContext<GameStateContextValue | null>(null);
 
-function defaultState(): GameState {
-  return {
-    currency: STARTER_CURRENCY,
-    ownedItemIds: [...STARTER_ITEM_IDS],
-    missionProgress: DEMO_MISSION_PROGRESS,
-    gardenPlots: DEMO_GARDEN_PLOTS,
-    seedCount: 1,
-    discoveredBehaviors: DEMO_DISCOVERED_BEHAVIORS,
-  };
-}
-
-function loadState(): GameState {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return defaultState();
-  try {
-    return JSON.parse(raw) as GameState;
-  } catch {
-    return defaultState();
-  }
-}
-
 export function GameStateProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GameState>(loadState);
+  const { nickname } = useAuth();
+  const [state, setState] = useState<GameStateResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  function persist(next: GameState) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setState(next);
+  async function refresh() {
+    setState(await gameApi.fetchState());
   }
 
-  function spendCurrency(amount: number): boolean {
-    if (state.currency < amount) return false;
-    persist({ ...state, currency: state.currency - amount });
-    return true;
-  }
-
-  function addCurrency(amount: number) {
-    persist({ ...state, currency: state.currency + amount });
-  }
-
-  function purchaseItem(itemId: ItemId): boolean {
-    if (state.ownedItemIds.includes(itemId)) return false;
-    const cost = ITEM_MASTERS[itemId].cost;
-    if (state.currency < cost) return false;
-    persist({
-      ...state,
-      currency: state.currency - cost,
-      ownedItemIds: [...state.ownedItemIds, itemId],
-    });
-    return true;
-  }
-
-  function claimMissionReward(missionId: MissionId): boolean {
-    const mission = state.missionProgress[missionId];
-    const info = MISSIONS[missionId];
-    if (mission.claimed || mission.progress < info.target) return false;
-    persist({
-      ...state,
-      currency: state.currency + info.reward,
-      missionProgress: {
-        ...state.missionProgress,
-        [missionId]: { ...mission, claimed: true },
-      },
-    });
-    return true;
-  }
-
-  function updatePlot(plotId: number, update: Partial<GardenPlot>) {
-    persist({
-      ...state,
-      gardenPlots: state.gardenPlots.map((plot) =>
-        plot.id === plotId ? { ...plot, ...update } : plot,
-      ),
-    });
-  }
-
-  function plantSeed(plotId: number): boolean {
-    const plot = state.gardenPlots.find((p) => p.id === plotId);
-    if (!plot || plot.status !== "EMPTY" || state.seedCount < 1) return false;
-    persist({
-      ...state,
-      seedCount: state.seedCount - 1,
-      gardenPlots: state.gardenPlots.map((p) =>
-        p.id === plotId ? { ...p, status: "GROWING", plantedAt: Date.now(), hasWeed: false } : p,
-      ),
-    });
-    return true;
-  }
-
-  function removeWeed(plotId: number): boolean {
-    const plot = state.gardenPlots.find((p) => p.id === plotId);
-    if (!plot || !plot.hasWeed) return false;
-    persist({ ...state, seedCount: state.seedCount + 1 });
-    updatePlot(plotId, { hasWeed: false });
-    return true;
-  }
-
-  function harvestPlot(plotId: number): boolean {
-    const plot = state.gardenPlots.find((p) => p.id === plotId);
-    if (!plot || plot.status !== "READY") return false;
-    persist({
-      ...state,
-      currency: state.currency + HARVEST_REWARD,
-      gardenPlots: state.gardenPlots.map((p) =>
-        p.id === plotId ? { id: p.id, status: "EMPTY", hasWeed: false, plantedAt: null } : p,
-      ),
-    });
-    return true;
-  }
-
-  function tickGardenGrowth() {
-    const now = Date.now();
-    let changed = false;
-    const nextPlots = state.gardenPlots.map((plot) => {
-      if (plot.status === "GROWING" && plot.plantedAt && now - plot.plantedAt >= MOCK_GROW_DURATION_MS) {
-        changed = true;
-        return { ...plot, status: "READY" as const };
-      }
-      return plot;
-    });
-    if (changed) {
-      persist({ ...state, gardenPlots: nextPlots });
+  useEffect(() => {
+    if (!nickname) {
+      setState(null);
+      return;
     }
+    setIsLoading(true);
+    refresh().finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nickname]);
+
+  async function purchaseItem(itemId: ItemId) {
+    setState(await gameApi.purchaseItem(itemId));
   }
 
-  function discoverBehavior(behaviorId: HamsterBehavior): boolean {
-    if (state.discoveredBehaviors[behaviorId]) return false;
-    persist({
-      ...state,
-      discoveredBehaviors: {
-        ...state.discoveredBehaviors,
-        [behaviorId]: new Date().toISOString().slice(0, 10),
-      },
-    });
-    return true;
+  async function plantSeed(plotId: number) {
+    setState(await gameApi.plantSeed(plotId));
   }
 
-  function resetGameState() {
-    localStorage.removeItem(STORAGE_KEY);
-    setState(defaultState());
+  async function removeWeed(plotId: number) {
+    setState(await gameApi.removeWeed(plotId));
+  }
+
+  async function harvestPlot(plotId: number) {
+    setState(await gameApi.harvestPlot(plotId));
+  }
+
+  async function claimMissionReward(missionId: MissionId) {
+    setState(await gameApi.claimMissionReward(missionId));
+  }
+
+  async function discoverBehavior(behaviorId: HamsterBehavior) {
+    setState(await gameApi.discoverBehavior(behaviorId));
   }
 
   return (
     <GameStateContext.Provider
       value={{
-        ...state,
-        spendCurrency,
-        addCurrency,
+        state,
+        isLoading,
+        refresh,
         purchaseItem,
-        claimMissionReward,
         plantSeed,
         removeWeed,
         harvestPlot,
-        tickGardenGrowth,
+        claimMissionReward,
         discoverBehavior,
-        resetGameState,
       }}
     >
       {children}
@@ -226,10 +84,34 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useGameState() {
+function useGameStateContext() {
   const ctx = useContext(GameStateContext);
   if (!ctx) {
     throw new Error("useGameState는 GameStateProvider 내부에서만 사용할 수 있습니다.");
   }
   return ctx;
+}
+
+// GameShell처럼 로딩 상태 자체를 다뤄야 하는 곳에서 사용
+export function useGameStateStatus() {
+  const ctx = useGameStateContext();
+  return { isLoading: ctx.isLoading, isReady: ctx.state !== null, refresh: ctx.refresh };
+}
+
+// 상태가 이미 로드되어 있다고 가정하는 화면(GameShell 하위)에서 사용
+export function useGameState() {
+  const ctx = useGameStateContext();
+  if (!ctx.state) {
+    throw new Error("게임 상태가 아직 로드되지 않았습니다. GameShell 하위에서만 사용하세요.");
+  }
+  return {
+    ...ctx.state,
+    purchaseItem: ctx.purchaseItem,
+    plantSeed: ctx.plantSeed,
+    removeWeed: ctx.removeWeed,
+    harvestPlot: ctx.harvestPlot,
+    claimMissionReward: ctx.claimMissionReward,
+    discoverBehavior: ctx.discoverBehavior,
+    refresh: ctx.refresh,
+  };
 }

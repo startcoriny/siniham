@@ -139,4 +139,20 @@
 
 알아둘 것. `GameStateContext`의 재화(currency)는 여전히 별개의 로컬 목업이라 서버 `User.currency`와 연결 안 돼 있음(둘 다 100에서 시작해서 지금은 안 보이지만 상점에서 구매하면 바로 어긋남). "사용자 정보" 단계에서 정리 필요.
 
-## 다음 - 사용자 정보, 햄스터 상태, 케이지 데이터, 햄스터 액션, 정원, 상점, 미션, 행동 도감 순서로 계속 진행
+### 사용자 정보 / 케이지 데이터 / 정원 / 상점 / 미션 / 행동 도감 - 전부 실제 API로 전환 완료
+
+"햄스터 상태"와 "햄스터 액션"은 Hamster 모델이 온보딩(보류 그룹) 전까지 없어서 건너뛰었다. product-plan.md 데이터 모델상 CageItem/GardenPlot/Mission/BehaviorLog는 원래 User의 직접 자식이라(Hamster 경유 아님) 온보딩 없이도 구현 가능했다.
+
+- [x] Prisma 스키마 확장 - `ItemMaster`(정적 카탈로그, enum ItemId), `CageItem`, `GardenPlot`(enum PlotStatus), `Mission`(enum MissionId, `missionDate`로 일일 리셋), `BehaviorLog`(enum HamsterBehavior). `User.seedCount` 필드 추가. 2번의 마이그레이션 적용
+- [x] `seedItemMasters()` - 서버 부팅 시 아이템 카탈로그 upsert (idempotent)
+- [x] 회원가입 시 `initializeStarterData()` - 기본 가구 3종, 정원 4칸(EMPTY) 자동 생성. 실제 신규 유저는 전부 깨끗한 상태로 시작 (목업 시절의 "시연용" 값과 다름 - 정정 완료)
+- [x] `GET /api/state` - 재화/씨앗/보유아이템/정원/미션(오늘자, lazy 생성)/도감을 한번에 반환. 정원 성장도 조회 시점에 lazy-tick으로 계산(`tickGardenGrowth`, 10분 - product-plan.md에 실제 수치 없어 임시값)
+- [x] `POST /api/shop/purchase`, `POST /api/garden/:plotIndex/plant`·`/remove-weed`·`/harvest`, `POST /api/missions/:missionId/claim`, `POST /api/behaviors/:behaviorId/discover` - 전부 트랜잭션으로 처리하고 최신 `GameStateResponse`를 반환
+- [x] `shared/types/gameState.ts` 신규 - API 응답 타입 통일
+- [x] 프론트 `GameStateContext` 전면 재작성 - `localStorage` 목업 제거, 로그인되면 `/api/state`로 부트스트랩, 각 액션은 서버 호출 후 응답으로 상태 교체. `useGameState()`(로드 후 사용, throw 가능)와 `useGameStateStatus()`(GameShell의 로딩 게이트용) 두 훅으로 분리
+- [x] `GameShell`에 로딩 게이트 추가 - 상태 로드 전엔 `LoadingHamster`
+- [x] `ShopPage`/`GardenPage`/`CollectionPage` 전부 async + try/catch로 전환, 서버 에러 메시지를 그대로 토스트로 표시
+- [x] `SettingsPage`의 회원 탈퇴 - 실제 계정 삭제 API가 아직 없어서 지금은 로그아웃과 동일하게 동작 (주석으로 명시)
+- [x] 검증. 신규 회원가입 -> 초기 상태(재화100/씨앗1/기본가구3/정원4빈밭/미션0/도감0) 확인 -> 상점 구매(재화 정확히 소진) -> 정원 심기(씨앗 소진, 성장중 전환) -> 새로고침해도 DB에 저장된 상태 유지 -> 도감 발견까지 Playwright로 실제 회원가입한 계정으로 전체 확인. typecheck·build 통과.
+
+## 다음 - 온보딩/케이지 (골든·그레이 2색상 기준으로 진행)

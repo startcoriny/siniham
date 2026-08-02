@@ -16,11 +16,13 @@ export default function ShopPage() {
 
   const selectedItem = selectedItemId ? ITEM_MASTERS[selectedItemId] : null;
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!selectedItemId) return;
-    const ok = purchaseItem(selectedItemId);
-    if (ok) {
+    try {
+      await purchaseItem(selectedItemId);
       showToast(`${ITEM_MASTERS[selectedItemId].name}을(를) 구매했어요.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "구매에 실패했어요.");
     }
     setSelectedItemId(null);
   }

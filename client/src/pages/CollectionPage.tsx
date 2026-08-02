@@ -23,18 +23,24 @@ export default function CollectionPage() {
   const { showToast } = useToast();
   const [discoveredModalId, setDiscoveredModalId] = useState<HamsterBehavior | null>(null);
 
-  function handleClaim(missionId: MissionId) {
-    const ok = claimMissionReward(missionId);
-    if (ok) {
+  async function handleClaim(missionId: MissionId) {
+    try {
+      await claimMissionReward(missionId);
       showToast(`${MISSIONS[missionId].name} 보상 ${MISSIONS[missionId].reward}을(를) 받았어요.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "보상 수령에 실패했어요.");
     }
   }
 
-  function handleDiscoverNext() {
+  async function handleDiscoverNext() {
     const next = BEHAVIOR_IDS.find((id) => !discoveredBehaviors[id]);
     if (!next) return;
-    discoverBehavior(next);
-    setDiscoveredModalId(next);
+    try {
+      await discoverBehavior(next);
+      setDiscoveredModalId(next);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "발견 기록에 실패했어요.");
+    }
   }
 
   return (

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "seedCount" INTEGER NOT NULL DEFAULT 1;

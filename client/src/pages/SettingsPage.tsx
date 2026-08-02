@@ -6,7 +6,6 @@ import PixelButton from "../components/common/PixelButton";
 import Toggle from "../components/common/Toggle";
 import Modal from "../components/common/Modal";
 import { useAuth } from "../context/AuthContext";
-import { useGameState } from "../context/GameStateContext";
 
 const SETTINGS_STORAGE_KEY = "siniham-mock-preferences";
 
@@ -30,7 +29,6 @@ function loadPreferences(): Preferences {
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { nickname, logout } = useAuth();
-  const { resetGameState } = useGameState();
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
   const [confirmMode, setConfirmMode] = useState<"logout" | "withdraw" | null>(null);
 
@@ -46,7 +44,7 @@ export default function SettingsPage() {
   }
 
   async function handleWithdraw() {
-    resetGameState();
+    // 계정/데이터를 실제로 삭제하는 API는 아직 없다. 지금은 로그아웃과 동일하게 동작한다.
     await logout();
     navigate("/");
   }

@@ -17,7 +17,109 @@ model User {
   nickname     String   @unique
   passwordHash String
   currency     Int      @default(100)
+  seedCount    Int      @default(1)
   lastActiveAt DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  cageItems     CageItem[]
+  gardenPlots   GardenPlot[]
+  missions      Mission[]
+  behaviorLogs  BehaviorLog[]
+}
+
+enum ItemId {
+  FOOD_BOWL
+  WATER_BOTTLE
+  HOUSE
+  WHEEL
+  TUNNEL
+}
+
+// 정적 참조 카탈로그. 5종 고정, seed.ts로 채운다.
+model ItemMaster {
+  id          ItemId  @id
+  name        String
+  cost        Int
+  purchasable Boolean @default(true)
+  effectJson  Json?
+
+  cageItems CageItem[]
+}
+
+model CageItem {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemMasterId ItemId
+  itemMaster   ItemMaster @relation(fields: [itemMasterId], references: [id])
+  posX         Float      @default(0.5)
+  posY         Float      @default(0.5)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, itemMasterId])
+}
+
+enum PlotStatus {
+  EMPTY
+  GROWING
+  READY
+}
+
+model GardenPlot {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plotIndex Int
+  status    PlotStatus @default(EMPTY)
+  hasWeed   Boolean    @default(false)
+  plantedAt DateTime?
+
+  @@unique([userId, plotIndex])
+}
+
+enum MissionId {
+  FEED
+  WATER
+  PET
+  GARDEN
+}
+
+model Mission {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionType  MissionId
+  missionDate  String
+  progress     Int       @default(0)
+  target       Int
+  refreshedAt  DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@unique([userId, missionType, missionDate])
+}
+
+enum HamsterBehavior {
+  IDLE
+  WALK
+  LOOK
+  EAT
+  DRINK
+  SLEEP
+  WHEEL
+  PET
+  WASH
+  CHEEK
+  USER_LOOK
+  GARDEN
+}
+
+model BehaviorLog {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  behaviorType      HamsterBehavior
+  firstDiscoveredAt DateTime        @default(now())
+
+  @@unique([userId, behaviorType])
 }

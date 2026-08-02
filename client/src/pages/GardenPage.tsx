@@ -10,14 +10,15 @@ import { useGameState } from "../context/GameStateContext";
 import { useToast } from "../components/common/Toast";
 
 const OFFLINE_SUMMARY_KEY = "siniham-offline-summary-shown-date";
+// 서버가 lazy-tick으로 성장을 계산하므로, 화면에 머무는 동안 주기적으로 다시 불러와 반영한다.
+const REFRESH_INTERVAL_MS = 30_000;
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export default function GardenPage() {
-  const { gardenPlots, seedCount, plantSeed, removeWeed, harvestPlot, tickGardenGrowth } =
-    useGameState();
+  const { gardenPlots, seedCount, plantSeed, removeWeed, harvestPlot, refresh } = useGameState();
   const { showToast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showOfflineSummary, setShowOfflineSummary] = useState(false);
@@ -29,10 +30,10 @@ export default function GardenPage() {
   }, []);
 
   useEffect(() => {
-    tickGardenGrowth();
-    const interval = setInterval(tickGardenGrowth, 1000);
+    const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [tickGardenGrowth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function closeOfflineSummary() {
     localStorage.setItem(OFFLINE_SUMMARY_KEY, todayKey());
@@ -41,19 +42,34 @@ export default function GardenPage() {
 
   const selectedPlot = gardenPlots.find((p) => p.id === selectedId) ?? null;
 
-  function handlePlant() {
+  async function handlePlant() {
     if (selectedId === null) return;
-    if (plantSeed(selectedId)) showToast("씨앗을 심었어요.");
+    try {
+      await plantSeed(selectedId);
+      showToast("씨앗을 심었어요.");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "심기에 실패했어요.");
+    }
   }
 
-  function handleRemoveWeed() {
+  async function handleRemoveWeed() {
     if (selectedId === null) return;
-    if (removeWeed(selectedId)) showToast("잡초를 뽑았어요. 씨앗 +1");
+    try {
+      await removeWeed(selectedId);
+      showToast("잡초를 뽑았어요. 씨앗 +1");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "잡초 제거에 실패했어요.");
+    }
   }
 
-  function handleHarvest() {
+  async function handleHarvest() {
     if (selectedId === null) return;
-    if (harvestPlot(selectedId)) showToast(`수확했어요! 재화 +${HARVEST_REWARD}`);
+    try {
+      await harvestPlot(selectedId);
+      showToast(`수확했어요! 재화 +${HARVEST_REWARD}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "수확에 실패했어요.");
+    }
   }
 
   return (
