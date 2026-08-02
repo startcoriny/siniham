@@ -5,6 +5,7 @@ import GardenPage from "./pages/GardenPage";
 import ShopPage from "./pages/ShopPage";
 import CollectionPage from "./pages/CollectionPage";
 import SettingsPage from "./pages/SettingsPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import GameShell from "./layouts/GameShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<AuthPage />} />
+      <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
       <Route
         path="/home"
         element={

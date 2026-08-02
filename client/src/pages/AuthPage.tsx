@@ -37,7 +37,7 @@ export default function AuthPage() {
       } else {
         await signup(nickname, password);
       }
-      navigate("/home");
+      navigate(mode === "signup" ? "/onboarding" : "/home");
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.");
     } finally {

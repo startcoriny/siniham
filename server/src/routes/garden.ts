@@ -4,7 +4,24 @@ import { z } from "zod";
 import { HARVEST_REWARD } from "@shared/types/garden";
 import { requireAuth } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
-import { serializeState, tickGardenGrowth } from "../lib/gameState";
+import { ensureTodayMissions, serializeState, tickGardenGrowth, todayKey } from "../lib/gameState";
+
+async function incrementGardenMission(userId: string) {
+  await ensureTodayMissions(userId);
+  const mission = await prisma.mission.findUnique({
+    where: {
+      userId_missionType_missionDate: { userId, missionType: "GARDEN", missionDate: todayKey() },
+    },
+  });
+  if (mission && mission.progress < mission.target) {
+    await prisma.mission.update({ where: { id: mission.id }, data: { progress: { increment: 1 } } });
+  }
+  await prisma.behaviorLog.upsert({
+    where: { userId_behaviorType: { userId, behaviorType: "GARDEN" } },
+    update: {},
+    create: { userId, behaviorType: "GARDEN" },
+  });
+}
 
 export const gardenRouter = Router();
 
@@ -46,6 +63,7 @@ gardenRouter.post("/:plotIndex/plant", requireAuth, async (req, res) => {
       data: { status: "GROWING", plantedAt: new Date(), hasWeed: false },
     }),
   ]);
+  await incrementGardenMission(userId);
 
   res.status(200).json(await serializeState(userId));
 });

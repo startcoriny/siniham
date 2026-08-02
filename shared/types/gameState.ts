@@ -3,6 +3,8 @@ import type { ItemId } from "./cage";
 import type { PlotStatus } from "./garden";
 import type { MissionId } from "./mission";
 import type { HamsterBehavior } from "./hamster";
+import type { CageItem } from "./cage";
+import type { Hamster } from "./hamster";
 
 export interface GameStatePlot {
   id: number;
@@ -18,4 +20,6 @@ export interface GameStateResponse {
   gardenPlots: GameStatePlot[];
   missionProgress: Record<MissionId, { progress: number; claimed: boolean }>;
   discoveredBehaviors: Partial<Record<HamsterBehavior, string>>;
+  cageItems: CageItem[];
+  hamster: Hamster | null;
 }

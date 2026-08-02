@@ -1,5 +1,5 @@
 // 로그인 이후 공통 레이아웃. 상단 정보 영역 + PC 좌측 메뉴 / 모바일 하단 탭 + 탭 콘텐츠
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import SideMenu from "../components/common/SideMenu";
 import BottomTabBar from "../components/common/BottomTabBar";
 import LoadingHamster from "../components/common/LoadingHamster";
@@ -27,7 +27,9 @@ function GameShellContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { nickname } = useAuth();
-  const { currency } = useGameState();
+  const { currency, hamster } = useGameState();
+
+  if (!hamster) return <Navigate to="/onboarding" replace />;
 
   const activeId =
     NAV_ITEMS.find((item) => location.pathname.startsWith(`/home/${item.id}`))?.id ?? "";

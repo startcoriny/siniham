@@ -4,6 +4,7 @@ import { GARDEN_PLOT_COUNT } from "@shared/types/garden";
 import { MISSIONS } from "@shared/types/mission";
 import type { MissionId } from "@shared/types/mission";
 import { prisma } from "./prisma";
+import { calculateHamsterTick, koreaDateKey, MAX_OFFLINE_MS } from "./balance";
 
 // 화면 설계서 6.5 초기 위치 예시(집: 왼쪽 뒤, 물통: 오른쪽 뒤, 먹이통: 오른쪽 앞)를 비율 좌표로 근사
 const STARTER_ITEM_POSITIONS: Record<string, { posX: number; posY: number }> = {
@@ -16,7 +17,29 @@ const STARTER_ITEM_POSITIONS: Record<string, { posX: number; posY: number }> = {
 export const GROW_DURATION_MS = 10 * 60 * 1000;
 
 export function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return koreaDateKey();
+}
+
+export async function tickHamsterState(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const elapsedMs = Math.min(Date.now() - user.lastActiveAt.getTime(), MAX_OFFLINE_MS);
+  if (elapsedMs < 60_000) return;
+  const hamster = await prisma.hamster.findUnique({ where: { userId } });
+  if (hamster) {
+    const next = calculateHamsterTick(hamster, elapsedMs);
+    await prisma.hamster.update({
+      where: { id: hamster.id },
+      data: {
+        hunger: next.hunger,
+        thirst: next.thirst,
+        cleanliness: next.cleanliness,
+        mood: next.mood,
+        stamina: next.stamina,
+        state: next.shouldSleep ? "SLEEPING" : hamster.state,
+      },
+    });
+  }
+  await prisma.user.update({ where: { id: userId }, data: { lastActiveAt: new Date() } });
 }
 
 export async function initializeStarterData(userId: string) {
@@ -71,10 +94,11 @@ export async function tickGardenGrowth(userId: string) {
 }
 
 export async function serializeState(userId: string) {
-  await Promise.all([ensureTodayMissions(userId), tickGardenGrowth(userId)]);
+  await Promise.all([ensureTodayMissions(userId), tickGardenGrowth(userId), tickHamsterState(userId)]);
 
-  const [user, cageItems, gardenPlots, missions, behaviorLogs] = await Promise.all([
+  const [user, hamster, cageItems, gardenPlots, missions, behaviorLogs] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+    prisma.hamster.findUnique({ where: { userId } }),
     prisma.cageItem.findMany({ where: { userId } }),
     prisma.gardenPlot.findMany({ where: { userId }, orderBy: { plotIndex: "asc" } }),
     prisma.mission.findMany({ where: { userId, missionDate: todayKey() } }),
@@ -97,5 +121,30 @@ export async function serializeState(userId: string) {
     discoveredBehaviors: Object.fromEntries(
       behaviorLogs.map((b) => [b.behaviorType, b.firstDiscoveredAt.toISOString().slice(0, 10)]),
     ),
+    cageItems: cageItems.map((item) => ({
+      id: item.id,
+      itemId: item.itemMasterId,
+      posX: item.posX,
+      posY: item.posY,
+    })),
+    hamster: hamster
+      ? {
+          id: hamster.id,
+          name: hamster.name,
+          appearance: hamster.appearance,
+          personality: hamster.personality,
+          stats: {
+            hunger: hamster.hunger,
+            thirst: hamster.thirst,
+            cleanliness: hamster.cleanliness,
+            mood: hamster.mood,
+            stamina: hamster.stamina,
+            intimacy: hamster.intimacy,
+          },
+          growthStage: hamster.growthStage,
+          state: hamster.state,
+          createdAt: hamster.createdAt.toISOString(),
+        }
+      : null,
   };
 }

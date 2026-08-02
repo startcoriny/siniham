@@ -74,4 +74,12 @@ export interface Hamster {
   personality: string;
   growthStage: string;
   createdAt: string;
+  state: "IDLE" | "SLEEPING";
+}
+
+export type HamsterAction = "FEED" | "WATER" | "PET" | "CLEAN";
+
+export interface CreateHamsterRequest {
+  name: string;
+  appearance: Extract<HamsterAppearance, "GOLDEN" | "GRAY">;
 }

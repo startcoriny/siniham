@@ -6,8 +6,6 @@ import type { HamsterBehavior } from "@shared/types/hamster";
 import { BEHAVIOR_INFO } from "@shared/types/behavior";
 import MissionCard from "../components/collection/MissionCard";
 import BehaviorCard from "../components/collection/BehaviorCard";
-import DiscoveryModal from "../components/collection/DiscoveryModal";
-import PixelButton from "../components/common/PixelButton";
 import { useGameState } from "../context/GameStateContext";
 import { useToast } from "../components/common/Toast";
 
@@ -18,10 +16,8 @@ const BEHAVIOR_IDS = Object.keys(BEHAVIOR_INFO) as HamsterBehavior[];
 
 export default function CollectionPage() {
   const [subTab, setSubTab] = useState<SubTab>("mission");
-  const { missionProgress, claimMissionReward, discoveredBehaviors, discoverBehavior } =
-    useGameState();
+  const { missionProgress, claimMissionReward, discoveredBehaviors } = useGameState();
   const { showToast } = useToast();
-  const [discoveredModalId, setDiscoveredModalId] = useState<HamsterBehavior | null>(null);
 
   async function handleClaim(missionId: MissionId) {
     try {
@@ -29,17 +25,6 @@ export default function CollectionPage() {
       showToast(`${MISSIONS[missionId].name} 보상 ${MISSIONS[missionId].reward}을(를) 받았어요.`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "보상 수령에 실패했어요.");
-    }
-  }
-
-  async function handleDiscoverNext() {
-    const next = BEHAVIOR_IDS.find((id) => !discoveredBehaviors[id]);
-    if (!next) return;
-    try {
-      await discoverBehavior(next);
-      setDiscoveredModalId(next);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "발견 기록에 실패했어요.");
     }
   }
 
@@ -88,18 +73,8 @@ export default function CollectionPage() {
               />
             ))}
           </div>
-
-          {/* 케이지 화면이 아직 없어 실제 행동 발견 트리거가 없다. 임시 테스트 버튼 - 케이지 완성 후 제거 */}
-          <PixelButton variant="secondary" onClick={handleDiscoverNext}>
-            테스트. 다음 미발견 행동 발견하기
-          </PixelButton>
         </div>
       )}
-
-      <DiscoveryModal
-        behavior={discoveredModalId ? BEHAVIOR_INFO[discoveredModalId] : null}
-        onClose={() => setDiscoveredModalId(null)}
-      />
     </div>
   );
 }

@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild src/lib/balance.test.ts --bundle --platform=node --format=esm --outfile=dist/balance.test.js && node --test dist/balance.test.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/index.js",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
