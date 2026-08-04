@@ -46,6 +46,17 @@ body {
   }
 }
 
+/* 먹기/물마시기/세수 같은 정지 그림 행동이 몇 초씩 완전히 굳어 보이지 않도록 얹는 미세한 반복 동작.
+   pet-squish처럼 한 번 재생하고 끝나는 게 아니라 행동이 지속되는 동안 계속 돈다. */
+@keyframes siniham-action-loop {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 .animate-pet-squish {
   transform-origin: bottom center;
   animation: siniham-pet-squish 420ms ease-out;
@@ -55,10 +66,16 @@ body {
   animation: siniham-heart-float 1s ease-out forwards;
 }
 
+.animate-action-loop {
+  transform-origin: bottom center;
+  animation: siniham-action-loop 900ms ease-in-out infinite;
+}
+
 /* 접근성 설정을 켠 사용자에게는 연출을 멈춘다 */
 @media (prefers-reduced-motion: reduce) {
   .animate-pet-squish,
-  .animate-heart-float {
+  .animate-heart-float,
+  .animate-action-loop {
     animation: none;
   }
 }

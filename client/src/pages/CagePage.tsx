@@ -10,10 +10,19 @@ import StatusBar from "../components/common/StatusBar";
 import { useToast } from "../components/common/Toast";
 import { useGameState } from "../context/GameStateContext";
 import { CAGE_ITEM_IMAGE } from "../lib/cageItemAssets";
+import cageBackground from "../assets/cage/background.png";
 import wheelSpin1 from "../assets/cage-items/wheel-spin/frame-01.png";
 import wheelSpin2 from "../assets/cage-items/wheel-spin/frame-02.png";
 import wheelSpin3 from "../assets/cage-items/wheel-spin/frame-03.png";
 import wheelSpin4 from "../assets/cage-items/wheel-spin/frame-04.png";
+import wheelSpin5 from "../assets/cage-items/wheel-spin/frame-05.png";
+import wheelSpin6 from "../assets/cage-items/wheel-spin/frame-06.png";
+import wheelSpin7 from "../assets/cage-items/wheel-spin/frame-07.png";
+import wheelSpin8 from "../assets/cage-items/wheel-spin/frame-08.png";
+import wheelSpin9 from "../assets/cage-items/wheel-spin/frame-09.png";
+import wheelSpin10 from "../assets/cage-items/wheel-spin/frame-10.png";
+import wheelSpin11 from "../assets/cage-items/wheel-spin/frame-11.png";
+import wheelSpin12 from "../assets/cage-items/wheel-spin/frame-12.png";
 
 const ACTIONS: Array<{ id: HamsterAction; label: string; behavior: HamsterBehavior }> = [
   { id: "FEED", label: "밥 주기", behavior: "EAT" },
@@ -22,12 +31,18 @@ const ACTIONS: Array<{ id: HamsterAction; label: string; behavior: HamsterBehavi
   { id: "WASH", label: "세수하기", behavior: "WASH" },
 ];
 
+// 걷기는 프레임 자체가 움직이고 대기는 눈 깜박임이 있어 따로 손댈 필요가 없다. 그 외 정지 그림
+// 행동은 몇 초씩 완전히 굳어 보이므로 animate-action-loop로 미세한 반복 동작을 얹는다.
+const LOOPING_BEHAVIORS: HamsterBehavior[] = ["LOOK", "EAT", "DRINK", "SLEEP", "PET", "WASH", "CHEEK"];
+
 // 케이지에서의 표시 크기를 스테이지 폭 대비 비율로 둔다.
 // 화면 크기와 무관하게 햄스터와 가구의 비율이 같아야 PC와 모바일이 같은 장면으로 보인다.
 // (예전에는 가구만 반응형 px이고 햄스터는 160px 고정이라 모바일에서 햄스터만 커 보였다)
 const ITEM_ASSET = {
   FOOD_BOWL: { src: CAGE_ITEM_IMAGE.FOOD_BOWL, widthRatio: 0.13 },
-  WATER_BOTTLE: { src: CAGE_ITEM_IMAGE.WATER_BOTTLE, widthRatio: 0.109 },
+  // 물병 그림은 세로로 길어(가로의 2.2배) 폭 기준으로 잡으면 키가 햄스터의 1.8배가 된다.
+  // 옆에 서면 햄스터가 작아 보여서 실제 사육장처럼 햄스터 키와 비슷해지도록 낮춘다.
+  WATER_BOTTLE: { src: CAGE_ITEM_IMAGE.WATER_BOTTLE, widthRatio: 0.073 },
   HANDHELD_WATER_BOTTLE: { src: CAGE_ITEM_IMAGE.HANDHELD_WATER_BOTTLE, widthRatio: 0.087 },
   WATER_BOWL: { src: CAGE_ITEM_IMAGE.WATER_BOWL, widthRatio: 0.13 },
   HOUSE: { src: CAGE_ITEM_IMAGE.HOUSE, widthRatio: 0.196 },
@@ -43,12 +58,24 @@ const HAMSTER_WIDTH_RATIO = 0.217;
 const HAMSTER_ON_WHEEL_RATIO = 0.143;
 // 스테이지를 아직 못 쟀을 때 쓸 기본값. PC 기준 폭이라 첫 페인트가 크게 어긋나지 않는다.
 const FALLBACK_STAGE_WIDTH = 736;
+const FALLBACK_STAGE_HEIGHT = FALLBACK_STAGE_WIDTH * 0.7;
+
+// 픽셀 아트는 홀수 크기의 절반이나 % 좌표가 0.5px에 걸리면 브라우저 합성 과정에서 흐려진다.
+// 짝수 크기 + 정수 위치를 사용하면 translate(-50%) 이후에도 실제 픽셀 경계에 정확히 놓인다.
+function evenPixel(value: number) {
+  return Math.max(2, Math.round(value / 2) * 2);
+}
 
 // 쓰다듬을 때 떠오르는 하트가 사라지기까지의 시간. index.css의 애니메이션 길이와 맞춘다.
 const PET_HEART_MS = 1000;
 // 하트가 뜨는 높이(스테이지 높이 비율). 햄스터 머리 위에서 시작한다.
 const PET_HEART_RISE = 0.09;
-const WHEEL_SPIN_FRAMES = [wheelSpin1, wheelSpin2, wheelSpin3, wheelSpin4];
+// 발판(10개, 36도 주기)과 스포크(4개, 90도 주기)가 겹치는 무늬는 180도마다 완전히 반복돼
+// 12프레임이 180도를 15도씩 나눠 찍은 것만으로 이미 끊김 없는 한 바퀴 회전으로 보인다.
+const WHEEL_SPIN_FRAMES = [
+  wheelSpin1, wheelSpin2, wheelSpin3, wheelSpin4, wheelSpin5, wheelSpin6,
+  wheelSpin7, wheelSpin8, wheelSpin9, wheelSpin10, wheelSpin11, wheelSpin12,
+];
 
 // 가구를 보유하고 있을 때 햄스터가 스스로 하는 행동. 위에서부터 차례로 확률 구간을 차지한다.
 // 확률을 낮게 둬서 "걷다가 가끔 뭘 한다"가 되게 한다. 5종을 다 가져도 한 번에 25%다.
@@ -116,8 +143,21 @@ function wanderTarget(from: StagePoint): StagePoint {
 export default function CagePage() {
   const { hamster, cageItems, performHamsterAction, performIdleActivity, moveCageItem } = useGameState();
   const { showToast } = useToast();
-  const [behavior, setBehavior] = useState<HamsterBehavior>("IDLE");
-  const [hamsterPosition, setHamsterPosition] = useState<StagePoint>({ x: 0.5, y: 0.68 });
+  // 30분 넘게 자리를 비우면 서버가 재워둔다(tickHamsterState). 화면이 이걸 그냥 무시하고 있었다.
+  const isSleeping = hamster?.state === "SLEEPING";
+  const [behavior, setBehavior] = useState<HamsterBehavior>(() =>
+    isSleeping ? "SLEEP" : "IDLE",
+  );
+  // 자고 있는 채로 접속했으면 집 앞에서 자는 걸로 시작한다. 집이 아직 없으면(있을 수 없지만) 기본 위치.
+  const [hamsterPosition, setHamsterPosition] = useState<StagePoint>(() => {
+    if (isSleeping) {
+      const house = cageItems.find((item) => item.itemId === "HOUSE");
+      if (house) {
+        return { x: clamp(house.posX + 0.03, 0.18, 0.82), y: clamp(house.posY + 0.16, 0.35, 0.8) };
+      }
+    }
+    return { x: 0.5, y: 0.68 };
+  });
   // 이동 거리에 따라 매번 달라진다. 스프라이트의 CSS 전환 시간에 그대로 쓴다.
   const [moveDurationMs, setMoveDurationMs] = useState(MIN_WALK_MS);
   const [facing, setFacing] = useState<"left" | "right">("right");
@@ -136,14 +176,17 @@ export default function CagePage() {
   // 스테이지 실제 폭. 모든 스프라이트 크기를 여기에 비례시켜 PC와 모바일의 비율을 맞춘다.
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageWidth, setStageWidth] = useState(FALLBACK_STAGE_WIDTH);
+  const [stageHeight, setStageHeight] = useState(FALLBACK_STAGE_HEIGHT);
 
   // 첫 페인트 전에 재야 큰 크기로 그렸다가 줄어드는 깜빡임이 없다.
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     setStageWidth(stage.clientWidth);
+    setStageHeight(stage.clientHeight);
     const observer = new ResizeObserver(([entry]) => {
       setStageWidth(entry.contentRect.width);
+      setStageHeight(entry.contentRect.height);
     });
     observer.observe(stage);
     return () => observer.disconnect();
@@ -156,7 +199,7 @@ export default function CagePage() {
     }
     const timer = window.setInterval(() => {
       setWheelFrameIndex((current) => (current + 1) % WHEEL_SPIN_FRAMES.length);
-    }, 160);
+    }, 90);
     return () => window.clearInterval(timer);
   }, [activeWheelId]);
 
@@ -181,8 +224,13 @@ export default function CagePage() {
   const cyclesSinceActivityRef = useRef(ACTIVITY_MIN_GAP);
   const restedLastCycleRef = useRef(false);
 
+  // 자는 동안 자율 행동 루프가 재우기 전 자세로 덮어써 버리지 않도록 자는 자세를 다시 못박는다.
   useEffect(() => {
-    if (busy || editing || detailOpen) return;
+    if (isSleeping) setBehavior("SLEEP");
+  }, [isSleeping]);
+
+  useEffect(() => {
+    if (busy || editing || detailOpen || isSleeping) return;
     const timers: number[] = [];
 
     function later(callback: () => void, delay: number) {
@@ -266,7 +314,7 @@ export default function CagePage() {
     // cageItems와 performIdleActivity는 매번 새 참조라 의존성에 넣으면 연출이 끊긴다.
     // 배치 변경은 cageLayoutKey로, 최신 목록은 cageItemsRef로 받는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, cageLayoutKey, detailOpen, editing]);
+  }, [busy, cageLayoutKey, detailOpen, editing, isSleeping]);
 
   if (!hamster) return null;
 
@@ -306,7 +354,14 @@ export default function CagePage() {
       : false,
     );
     if (targetItem) {
-      const target = { x: targetItem.posX, y: Math.min(0.82, targetItem.posY + 0.12) };
+      // 가구는 스테이지 가장자리(x 0.08~0.92)까지 놓을 수 있지만 햄스터 중심을 그 좌표에
+      // 그대로 두면 정사각 스프라이트의 일부가 overflow-hidden 경계 밖으로 잘린다.
+      // 특히 오른쪽을 향한 WALK 그림은 머리 쪽이 먼저 잘려 이동하면서 작아지는 것처럼 보인다.
+      // 산책과 같은 안전 영역 안에 몸을 두되, 세로 위치는 가구 아래쪽을 유지한다.
+      const target = {
+        x: clamp(targetItem.posX, 0.18, 0.82),
+        y: Math.min(0.82, targetItem.posY + 0.12),
+      };
       const duration = walkDurationMs(hamsterPosition, target);
       setBehavior("WALK");
       setFacing(target.x < hamsterPosition.x ? "left" : "right");
@@ -333,7 +388,8 @@ export default function CagePage() {
     if (!editing || !selectedItemId) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const posX = Math.max(0.08, Math.min(0.92, (event.clientX - rect.left) / rect.width));
-    const posY = Math.max(0.15, Math.min(0.85, (event.clientY - rect.top) / rect.height));
+    // 배경의 바닥은 0.35부터다. 그 위는 유리벽이라 가구를 놓으면 허공에 떠 보인다.
+    const posY = Math.max(0.35, Math.min(0.85, (event.clientY - rect.top) / rect.height));
     try {
       await moveCageItem(selectedItemId, posX, posY);
       setSelectedItemId(null);
@@ -348,7 +404,7 @@ export default function CagePage() {
     const rect = event.currentTarget.getBoundingClientRect();
     setPreviewPosition({
       x: Math.max(0.08, Math.min(0.92, (event.clientX - rect.left) / rect.width)),
-      y: Math.max(0.15, Math.min(0.85, (event.clientY - rect.top) / rect.height)),
+      y: Math.max(0.35, Math.min(0.85, (event.clientY - rect.top) / rect.height)),
     });
   }
 
@@ -368,6 +424,9 @@ export default function CagePage() {
 
   const stats = hamster.stats;
   const activeWheel = cageItems.find((item) => item.id === activeWheelId);
+  const hamsterSize = evenPixel(
+    (activeWheelId ? HAMSTER_ON_WHEEL_RATIO : HAMSTER_WIDTH_RATIO) * stageWidth,
+  );
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 md:p-6">
       {/* 좌우 분할을 md(768px)에서 하면 좌측 메뉴까지 겹쳐 케이지가 300px 아래로 줄어든다. lg부터 나눈다 */}
@@ -390,7 +449,9 @@ export default function CagePage() {
           onPointerUp={finishDrag}
           onPointerCancel={() => { setDraggingItemId(null); setPreviewPosition(null); }}
           // min-h를 두면 좁은 화면에서 10:7 비율이 깨져 위치 계산과 어긋난다.
-          className={`relative aspect-[10/7] overflow-hidden rounded-2xl border-4 border-brown/20 bg-[linear-gradient(#d9f0c4_0_58%,#e7c58c_58%)] ${editing ? "cursor-crosshair" : ""}`}
+          // 배경은 1000x700 고정 그림이라 스테이지 비율(10:7)이 항상 같아 100% 100%로 늘려도 안 찌그러진다.
+          className={`relative aspect-[10/7] overflow-hidden rounded-2xl border-4 border-brown/20 ${editing ? "cursor-crosshair" : ""}`}
+          style={{ backgroundImage: `url(${cageBackground})`, backgroundSize: "100% 100%" }}
         >
           {cageItems.map((item) => {
             const itemAsset = item.itemId in ITEM_ASSET
@@ -441,31 +502,43 @@ export default function CagePage() {
           <button
             type="button"
             onClick={petByClick}
-            title={editing ? undefined : `${hamster.name} 쓰다듬기`}
-            aria-label={`${hamster.name} 쓰다듬기`}
+            title={editing ? undefined : `${hamster.name} ${isSleeping ? "깨우기" : "쓰다듬기"}`}
+            aria-label={`${hamster.name} ${isSleeping ? "깨우기" : "쓰다듬기"}`}
             disabled={editing}
-            className="absolute -translate-x-1/2 -translate-y-1/2 disabled:cursor-default"
+            className="absolute -translate-x-1/2 -translate-y-1/2 leading-none disabled:cursor-default"
             style={{
-              left: `${hamsterPosition.x * 100}%`,
-              top: `${hamsterPosition.y * 100}%`,
+              // absolute + width:auto 버튼은 오른쪽 남은 공간에 따라 shrink-to-fit 된다.
+              // 버튼 자체를 햄스터 크기로 고정해 자식 img의 크기가 위치에 영향받지 않게 한다.
+              width: `${hamsterSize}px`,
+              height: `${hamsterSize}px`,
+              minWidth: `${hamsterSize}px`,
+              // % 좌표 대신 정수 px로 끝점을 고정한다. 오른쪽 끝의 특정 소수 좌표에서만
+              // 스프라이트 전체가 보간되어 작아 보이던 현상을 막는다.
+              left: `${Math.round(hamsterPosition.x * stageWidth)}px`,
+              top: `${Math.round(hamsterPosition.y * stageHeight)}px`,
               transitionProperty: "left, top",
               transitionDuration: `${moveDurationMs}ms`,
-              transitionTimingFunction: "linear",
+              transitionTimingFunction: "ease-in-out",
             }}
           >
             {/* 버튼 자체에는 위치 이동용 transform이 걸려 있어 눌리는 연출은 안쪽에 따로 준다 */}
             <div
-              className={squishing ? "animate-pet-squish" : ""}
+              style={{ width: hamsterSize, height: hamsterSize }}
+              className={
+                squishing
+                  ? "animate-pet-squish"
+                  : LOOPING_BEHAVIORS.includes(behavior)
+                    ? "animate-action-loop"
+                    : ""
+              }
               onAnimationEnd={() => setSquishing(false)}
             >
               <HamsterSprite
                 appearance={hamster.appearance}
                 behavior={behavior}
                 facing={facing}
-                size={Math.round(
-                  (activeWheelId ? HAMSTER_ON_WHEEL_RATIO : HAMSTER_WIDTH_RATIO) * stageWidth,
-                )}
-                className={activeWheelId ? "animate-bounce" : ""}
+                size={hamsterSize}
+                className={`block ${activeWheelId ? "animate-bounce" : ""}`}
                 // 쳇바퀴는 빠르게 달리는 연출이라 원래 속도로, 케이지 산책은 느긋하게 재생한다.
                 frameIntervalMs={activeWheelId ? 160 : 360}
               />
@@ -494,20 +567,32 @@ export default function CagePage() {
               쳇바퀴 타는 중
             </span>
           )}
-          {editing && (
+          {editing ? (
             <p className="absolute inset-x-3 top-3 rounded-lg bg-card/90 p-2 text-center text-sm">
               {selectedItemId ? "가구를 끌거나 새 위치를 눌러 주세요." : "옮길 가구를 선택해 주세요."}
             </p>
-          )}
+          ) : isSleeping ? (
+            <p className="absolute inset-x-3 top-3 rounded-lg bg-card/90 p-2 text-center text-sm">
+              잠들어 있어요. 쓰다듬거나 깨우기 버튼을 눌러 주세요.
+            </p>
+          ) : null}
         </div>
       </section>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        {ACTIONS.map((action) => (
-          <PixelButton key={action.id} disabled={busy || editing} onClick={() => act(action.id, action.behavior)}>
-            {action.label}
+        {/* 자는 동안은 밥/물/세수 대신 깨우기만 내보낸다. 실제로는 쓰다듬기와 같은 호출이라
+            서버가 이미 하던 대로(state를 IDLE로) 깨워준다 - 클릭으로 깨우는 것과 같은 경로다. */}
+        {isSleeping ? (
+          <PixelButton className="col-span-2 md:col-span-4" disabled={busy} onClick={() => act("PET", "PET")}>
+            깨우기
           </PixelButton>
-        ))}
+        ) : (
+          ACTIONS.map((action) => (
+            <PixelButton key={action.id} disabled={busy || editing} onClick={() => act(action.id, action.behavior)}>
+              {action.label}
+            </PixelButton>
+          ))
+        )}
         <PixelButton variant="secondary" onClick={() => { setEditing(!editing); setSelectedItemId(null); }}>
           {editing ? "꾸미기 완료" : "꾸미기"}
         </PixelButton>

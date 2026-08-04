@@ -18,9 +18,16 @@ export default defineConfig({
     fs: {
       allow: [".."],
     },
+    watch: {
+      // Docker(특히 Windows 호스트의 bind mount)는 inotify 이벤트가 컨테이너까지 전달되지 않아
+      // 파일 내용은 최신인데 vite가 변경을 못 감지해 HMR이 죽는다. polling으로 우회한다.
+      usePolling: process.env.VITE_WATCH_POLL === "true",
+    },
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        // Docker 컨테이너 안에서는 localhost가 client 컨테이너 자신이라 server로 못 간다.
+        // docker-compose.yml의 client 서비스가 이 값을 http://server:3000으로 넘긴다.
+        target: process.env.VITE_API_PROXY_TARGET ?? "http://localhost:3000",
         changeOrigin: true,
       },
     },

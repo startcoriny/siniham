@@ -108,6 +108,14 @@ export default function HamsterSprite({
       onError={() => setFailed(true)}
       className={className}
       style={{
+        // Tailwind preflight의 img { max-width: 100% }가 폭이 auto인 부모의 shrink-to-fit
+        // 너비를 따라 이미지를 축소하지 못하게 실제 렌더 크기를 명시적으로 고정한다.
+        display: "block",
+        width: size,
+        height: size,
+        minWidth: size,
+        maxWidth: "none",
+        flexShrink: 0,
         imageRendering: "pixelated",
         transform: facing === "left" ? "scaleX(-1)" : undefined,
       }}

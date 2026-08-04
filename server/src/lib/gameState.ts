@@ -13,11 +13,15 @@ import {
   OFFLINE_SUMMARY_THRESHOLD_MS,
 } from "./balance";
 
-// 화면 설계서 6.5 초기 위치 예시(집: 왼쪽 뒤, 물통: 오른쪽 뒤, 먹이통: 오른쪽 앞)를 비율 좌표로 근사
+// 화면 설계서 6.5 초기 위치 예시(집: 왼쪽 뒤, 물통: 오른쪽 뒤, 먹이통: 오른쪽 앞)를 비율 좌표로 근사.
+// 배경이 유리벽+톱밥 바닥 그림으로 바뀌면서 바닥은 posY 0.35 아래부터다(가구는 전부 바닥에 있어야
+// 자연스럽다). 물통도 예전엔 벽 쪽(0.3)에 있었지만 이제 바닥 시작선 바로 아래로 내렸다.
+// 물통과 먹이통을 같은 posX(0.8)에 세로로 나란히 두면 물 마시러 갈 때 먹이통과 겹쳐 보여서
+// 먹이통 posX를 왼쪽으로 떨어뜨렸다.
 const STARTER_ITEM_POSITIONS: Record<string, { posX: number; posY: number }> = {
-  HOUSE: { posX: 0.2, posY: 0.3 },
-  WATER_BOTTLE: { posX: 0.8, posY: 0.3 },
-  FOOD_BOWL: { posX: 0.8, posY: 0.6 },
+  HOUSE: { posX: 0.2, posY: 0.38 },
+  WATER_BOTTLE: { posX: 0.78, posY: 0.36 },
+  FOOD_BOWL: { posX: 0.6, posY: 0.62 },
 };
 
 // 구매한 가구를 놓을 후보 자리. 순서대로 비어 있는 곳에 놓아 기본 좌표(0.5, 0.5)에 겹치지 않게 한다.

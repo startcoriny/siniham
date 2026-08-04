@@ -1,4 +1,6 @@
-# 로컬 개발용 PostgreSQL. 운영(Oracle 서버) compose는 배포 단계에서 app 컨테이너와 함께 별도 작성
+# 로컬 개발용 DB + 서버 + 프론트. `docker compose up` 한 번으로 전부 뜨게 하는 게 목적이라
+# node_modules는 호스트(Windows)와 섞이면 안 돼서 컨테이너 전용 익명 볼륨으로 따로 둔다.
+# 운영(Oracle 서버) compose는 배포 단계에서 app 컨테이너와 함께 별도 작성한 docker-compose.prod.yml.
 services:
   db:
     image: postgres:17-alpine
@@ -11,6 +13,63 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    image: node:24-alpine
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 3000
+      # tsx watch도 vite처럼 chokidar를 쓴다. Windows bind mount는 inotify가 전달되지 않아
+      # 이 값이 없으면 코드를 고쳐도 서버가 재시작되지 않는다.
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - .:/app
+      - server-root-modules:/app/node_modules
+      - server-server-modules:/app/server/node_modules
+      - server-client-modules:/app/client/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    # 스키마가 바뀌어도 항상 최신으로 뜨도록 매번 generate + migrate deploy 후 tsx watch로 실행
+    command: >
+      sh -c "npm install &&
+      cd server && npx prisma generate && npx prisma migrate deploy && cd .. &&
+      npm run dev -w server"
+
+  client:
+    image: node:24-alpine
+    working_dir: /app
+    environment:
+      # 컨테이너 안에서는 localhost가 client 컨테이너 자신을 가리켜 server로 못 간다.
+      # vite.config.ts가 이 값을 읽어 프록시 대상을 바꾼다 (호스트에서 직접 띄울 땐 기본값 그대로 사용).
+      VITE_API_PROXY_TARGET: http://server:3000
+      # Windows 호스트 bind mount는 inotify가 컨테이너까지 전달되지 않아 파일을 고쳐도 vite가 못 알아챈다.
+      VITE_WATCH_POLL: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - client-root-modules:/app/node_modules
+      - client-client-modules:/app/client/node_modules
+      - client-server-modules:/app/server/node_modules
+    depends_on:
+      - server
+    command: sh -c "npm install && npm run dev -w client -- --host 0.0.0.0"
 
 volumes:
   db-data:
+  server-root-modules:
+  server-server-modules:
+  server-client-modules:
+  client-root-modules:
+  client-client-modules:
+  client-server-modules:

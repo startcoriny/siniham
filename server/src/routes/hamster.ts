@@ -17,9 +17,11 @@ const actionSchema = z.object({ action: z.enum(["FEED", "WATER", "PET", "WASH"])
 const idleActivitySchema = z.object({
   itemId: z.enum(["WHEEL", "HOUSE", "SAND_BATH", "SNACK_DISH", "LOOKOUT"]),
 });
+// 배경이 유리벽+바닥 그림으로 바뀌면서 바닥은 posY 0.35부터다. 그 위는 유리벽이라
+// 가구를 놓으면 허공에 떠 보인다.
 const positionSchema = z.object({
   posX: z.number().min(0.08).max(0.92),
-  posY: z.number().min(0.15).max(0.85),
+  posY: z.number().min(0.35).max(0.85),
 });
 const itemParamsSchema = z.object({ itemId: z.string().min(1) });
 

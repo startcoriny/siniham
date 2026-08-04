@@ -1,5 +1,68 @@
 # Context Notes
 
+## 2026-08-04 - 포즈가 바뀔 때 햄스터가 작아지던 문제 (스프라이트 보정값 기준 변경)
+
+사용자 신고. "물주기를 누르면 물마시러 가면서 점점 작아지고, 물 마시는 모습이 제일 작고,
+그 뒤 가만히 있을 때도 작았다가, 다시 걸으면 원래대로 돌아온다."
+
+원인은 `normalize-hamster-sprites.py`의 `SCALE_OVERRIDES`였다. 정규화는 **소품까지 포함한 전체
+불투명 면적**의 제곱근으로 크기를 맞추는데, 그 위에 손으로 넣은 보정값이 포즈마다 제각각이었다.
+특히 걷기를 0.90으로 낮춰뒀는데, 이건 "옆모습이라 실루엣 폭이 정면보다 23% 넓어 보인다"는 걸
+줄이려던 것이었다. 폭은 맞춰졌지만 **몸통 면적이 정면 포즈보다 27% 작아졌다.**
+
+162px로 렌더링했을 때 몸통 면적(소품 제외) 실측값.
+
+| 포즈 | 수정 전 | 수정 후 |
+| --- | --- | --- |
+| idle / eat / wash / cheek / look | ~7,700 | 그대로 |
+| walk | 5,620 (-27%) | 7,650 |
+| sleep | 6,164 (-20%) | 7,770 |
+| drink | 6,946 (-10%) | 7,724 |
+
+`walk 0.90 -> 1.06`, `sleep 0.94 -> 1.06`, `drink 1.10 -> 1.16`으로 바꿨다. 소품이 없는 포즈는
+전부 1.06으로 수렴한다(정규화가 이미 면적을 맞추므로). 소품이 있는 drink만 그 면적을 상쇄하려고 더 크다.
+
+**기준을 폭이 아니라 몸통 면적으로 바꾼 것이 핵심이다.** 네발로 걷는 옆모습이나 누운 자세가 앉은
+정면보다 길고 낮은 건 자연스럽다. 폭을 억지로 맞추면 몸집이 달라져서 "작아졌다"로 읽힌다.
+
+그레이 `drink1.png`만 물병 없이 햄스터만 그려져 있어 `drink` 보정(1.16)을 받으면 20% 커진다.
+`override_for()`가 사전 순서가 아니라 **가장 긴(구체적인) 접두어**를 고르도록 바꾸고 `drink1: 1.06`을
+예외로 넣었다. 예전 방식은 "drink"가 "drink1"을 먼저 삼켰다.
+
+재작업은 정규화 **이전 원본**(git `b6e03c0`)을 꺼내 한 번만 리샘플링했다. 이미 축소된 파일을 다시
+키우면 화질이 누적으로 상한다.
+
+진단 과정에서 배운 것. 케이지 화면에서 색으로 햄스터를 분리하려 하면 바닥(탄색)·나무집·밥그릇이
+전부 주황 계열이라 측정이 오염된다. **스테이지 배경과 가구를 `visibility: hidden`으로 감추고 배경을
+마젠타로 깔면** 햄스터만 정확히 잴 수 있다(`scratchpad/isolate-measure.js` 방식). DOM 상자 크기
+(`getBoundingClientRect`)는 항상 162px로 일정해서 아무 단서가 안 됐다 - 크기 변화는 전부 그림 안에 있었다.
+
+돌아간 길. 처음엔 "물 마실 때만 작다"고 보고 `drink.png` 하나만 1.2배로 키웠는데, 그러면 물 마시는
+동안만 20% 커졌다가 끝나면 튀어서 오히려 더 나빠졌다. 되돌렸다. 한 포즈만 보지 말고 전 포즈의
+몸통 면적을 한 번에 재는 게 맞다.
+
+## 2026-08-03 - `docker compose up` 한 번으로 DB+서버+프론트 전부 기동
+
+기존엔 DB만 도커였고 서버(`npm run dev:server`)와 프론트(`npm run dev:client`)는 매번 따로 켜야 했다.
+`docker-compose.yml`에 `server`, `client` 서비스를 추가해 한 번에 뜨게 했다.
+
+- 이미지는 별도 Dockerfile 없이 `node:24-alpine`을 그대로 쓰고, 컨테이너 시작 커맨드에서 매번
+  `npm install` -> (server만) `prisma generate` + `migrate deploy` -> `npm run dev -w <workspace>` 순으로 실행한다.
+  스키마가 바뀌어도 컨테이너를 다시 띄우기만 하면 최신 상태로 맞춰진다.
+- `node_modules`는 호스트(Windows)와 절대 안 섞이게 컨테이너별 익명 볼륨으로 분리했다
+  (`server-root-modules`, `client-client-modules` 등 6개). 호스트의 `node_modules`는 Windows용
+  네이티브 바이너리(esbuild, prisma engine)라 리눅스 컨테이너 안에서 그대로 bind mount하면 깨진다.
+- vite의 `/api` 프록시 대상이 문제였다. client 컨테이너 안에서 `localhost:3000`은 client 컨테이너
+  자신이라 server 컨테이너로 못 간다. `vite.config.ts`가 `VITE_API_PROXY_TARGET` 환경변수를 읽게
+  바꾸고, docker-compose의 client 서비스에서만 `http://server:3000`으로 넘긴다. 호스트에서 그냥
+  `npm run dev:client`로 띄울 땐 이 값이 없어서 기존처럼 `localhost:3000` 그대로 쓴다 - 두 방식이
+  공존한다.
+- db 서비스에 healthcheck를 추가해 server가 `service_healthy`를 기다리게 했다(기존엔 db에
+  healthcheck가 없어서 prod compose에만 있었다).
+- 실제로 `docker compose up -d`로 띄워서 `curl localhost:5173/api/health`가 client의 프록시를
+  거쳐 server까지 갔다 오는 것까지 확인했다. `server listening on :3000`, `VITE ready`,
+  `No pending migrations to apply` 전부 정상.
+
 ## 2026-08-02 - 햄스터 클릭으로 쓰다듬기
 
 케이지의 햄스터를 클릭하면 쓰다듬어진다. 원래 클릭은 상세 정보 모달을 여는 동작이었는데,

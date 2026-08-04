@@ -31,15 +31,21 @@ SKIP_FILES = {"sheet-source.png"}
 
 # 파일별 보정값 (1.0보다 크면 더 크게 그린다).
 #
-# 소품이 같이 그려져 면적이 부풀려지는 것들과, 시점 차이로 실루엣이 달라 보이는 것들을 맞춘다.
-# 걷기는 옆모습이라 몸이 길게 퍼지고 먹기/서있기는 정면이라 뭉쳐 보인다. 면적이 같아도 실루엣 폭이
-# 23% 차이나서 걷다가 멈추면 작아진 것처럼 보였다. 양쪽을 가운데로 당겨 전환이 덜 튀게 한다.
+# 기준은 "소품을 뺀 햄스터 몸통의 면적"이 포즈마다 같아지는 것이다. 정규화 자체는 소품까지 포함한
+# 전체 불투명 면적으로 크기를 맞추므로, 소품이 함께 그려진 그림은 그만큼 햄스터가 작아진다.
+#
+# 예전에는 걷기를 0.90으로 낮췄었다. 옆모습이라 실루엣 폭이 정면보다 23% 넓어 보이는 걸 줄이려던
+# 건데, 폭을 맞추려다 몸통 면적이 정면 포즈보다 27% 작아졌다(162px 기준 면적 5620 대 7745).
+# 그래서 물을 마시러 걸어가면 햄스터가 눈에 띄게 작아졌다가 멈추면 다시 커졌다.
+# 네발로 걷는 옆모습이 앉은 정면보다 길고 낮은 건 자연스러우므로, 폭이 아니라 몸통 면적을 기준으로
+# 맞춘다. 아래 값들은 162px로 렌더링한 몸통 면적을 실측해 7745에 맞춘 결과다.
 SCALE_OVERRIDES = {
     "pet": 1.30,      # 사람 손이 위쪽에 함께 그려져 있다
     "wheel": 1.28,    # 쳇바퀴가 햄스터를 감싸고 있다
-    "drink": 1.10,    # 물병이 옆에 함께 그려져 있다
-    "sleep": 0.94,    # 몸을 말고 누운 자세라 면적 기준이면 조금 커진다
-    "walk": 0.90,     # 옆모습이라 몸이 길게 퍼져 커 보인다
+    "drink": 1.10,    # 물병 포함 자세가 일반 행동보다 커 보이지 않도록 체감 외곽을 맞춘다
+    "drink1": 1.06,   # gray/drink1만 물병 없이 햄스터만 있어 보정이 필요 없다
+    "sleep": 1.06,    # 누운 자세. 낮고 길되 몸집은 정면 포즈와 같게 둔다
+    "walk": 1.06,     # 옆모습. 길고 낮되 몸집은 정면 포즈와 같게 둔다
     "idle": 1.06,     # 아래는 정면 자세. 뭉쳐 보여 작아 보인다
     "eat": 1.06,
     "wash": 1.06,
@@ -49,12 +55,16 @@ SCALE_OVERRIDES = {
 
 
 def override_for(name: str) -> float:
+    """drink1.png, sleep2.png처럼 뒤에 번호가 붙는 시안도 같은 값을 쓴다.
+
+    단, drink1처럼 특정 시안만 따로 지정한 경우가 있으므로 가장 긴(구체적인) 접두어를 우선한다.
+    사전 순서에 의존하면 "drink"가 "drink1"을 먼저 삼켜 버린다.
+    """
     stem = os.path.splitext(os.path.basename(name))[0]
-    for prefix, value in SCALE_OVERRIDES.items():
-        # drink1.png, sleep2.png, wash3.png 처럼 뒤에 번호가 붙는 시안도 함께 처리한다
-        if stem.startswith(prefix):
-            return value
-    return 1.0
+    matches = [(p, v) for p, v in SCALE_OVERRIDES.items() if stem.startswith(p)]
+    if not matches:
+        return 1.0
+    return max(matches, key=lambda item: len(item[0]))[1]
 
 
 def content_bbox(mask: Image.Image) -> tuple[int, int, int, int] | None:
