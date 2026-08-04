@@ -6,13 +6,15 @@ import type { AuthResponse, AuthUser } from "@shared/types/auth";
 import { prisma } from "../lib/prisma";
 import { AUTH_COOKIE_NAME, signToken } from "../lib/jwt";
 import { requireAuth } from "../middleware/auth";
+import { authLimiter } from "../middleware/rateLimit";
 import { initializeStarterData } from "../lib/gameState";
 
 export const authRouter = Router();
 
+// 비밀번호 최소 8자. 4자를 허용하면 숫자 네 자리(1만 가지)라 요청 제한이 있어도 결국 뚫린다.
 const credentialsSchema = z.object({
   nickname: z.string().min(1).max(20),
-  password: z.string().min(4),
+  password: z.string().min(8).max(72),
 });
 
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -31,7 +33,7 @@ function toAuthUser(user: { id: string; nickname: string; currency: number }): A
   return { id: user.id, nickname: user.nickname, currency: user.currency };
 }
 
-authRouter.post("/signup", async (req, res) => {
+authRouter.post("/signup", authLimiter, async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "닉네임 또는 비밀번호 형식이 올바르지 않습니다." });
@@ -56,7 +58,7 @@ authRouter.post("/signup", async (req, res) => {
   res.status(201).json(body);
 });
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", authLimiter, async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "닉네임 또는 비밀번호 형식이 올바르지 않습니다." });

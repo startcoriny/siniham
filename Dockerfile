@@ -22,4 +22,7 @@ COPY --from=build /app/client/dist client/dist
 COPY --from=build /app/server/dist server/dist
 COPY --from=build /app/server/src/generated server/src/generated
 COPY --from=build /app/server/prisma server/prisma
+# schema.prisma에는 datasource url이 없고 prisma.config.ts가 DATABASE_URL을 넘긴다.
+# 이 파일이 없으면 migrate deploy가 "datasource.url property is required"로 죽는다.
+COPY --from=build /app/server/prisma.config.ts server/prisma.config.ts
 CMD ["sh", "-c", "cd server && npx prisma migrate deploy && cd .. && node server/dist/index.js"]
