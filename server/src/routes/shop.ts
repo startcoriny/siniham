@@ -33,7 +33,7 @@ shopRouter.post("/purchase", requireAuth, async (req, res) => {
     prisma.cageItem.findUnique({
       where: { userId_itemMasterId: { userId, itemMasterId: itemId } },
     }),
-    prisma.cageItem.findMany({ where: { userId }, select: { posX: true, posY: true } }),
+    prisma.cageItem.findMany({ where: { userId, isPlaced: true }, select: { posX: true, posY: true } }),
   ]);
 
   if (owned) {

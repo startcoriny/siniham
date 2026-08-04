@@ -59,6 +59,7 @@ model Hamster {
   intimacy    Int               @default(0)
   growthStage String            @default("BABY")
   state       HamsterState      @default(IDLE)
+  displayScale Float            @default(1)
   // 케이지를 보는 동안 스스로 하는 행동(모래목욕, 쳇바퀴 등)의 마지막 시각. 연속 요청을 막는 쿨다운 기준.
   lastIdleAt  DateTime?
   createdAt   DateTime          @default(now())
@@ -96,6 +97,9 @@ model CageItem {
   itemMaster   ItemMaster @relation(fields: [itemMasterId], references: [id])
   posX         Float      @default(0.5)
   posY         Float      @default(0.5)
+  scale        Float      @default(1)
+  flipped      Boolean    @default(false)
+  isPlaced     Boolean    @default(true)
   createdAt    DateTime   @default(now())
 
   @@unique([userId, itemMasterId])

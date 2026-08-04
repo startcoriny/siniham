@@ -25,12 +25,16 @@ export default function ShopItemCard({ item, owned, onSelect }: ShopItemCardProp
         <p className="font-semibold text-brown">{item.name}</p>
         <p className="text-sm text-brown/70">{item.description}</p>
       </div>
-      {owned ? (
+      {!item.purchasable ? (
+        <span className="rounded-lg bg-brown/10 py-2 text-center text-sm font-semibold text-brown/60">
+          준비중
+        </span>
+      ) : owned ? (
         <span className="rounded-lg bg-cream py-2 text-center text-sm font-medium text-brown/60">
           보유중
         </span>
       ) : (
-        <PixelButton onClick={onSelect}>{item.cost}로 구매</PixelButton>
+        <PixelButton onClick={onSelect}>{item.cost === 0 ? "무료로 받기" : `${item.cost}로 구매`}</PixelButton>
       )}
     </PixelCard>
   );

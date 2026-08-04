@@ -23,7 +23,16 @@ interface GameStateContextValue {
   createHamster: (input: CreateHamsterRequest) => Promise<void>;
   performHamsterAction: (action: HamsterAction) => Promise<void>;
   performIdleActivity: (itemId: IdleActivityItemId) => Promise<void>;
-  moveCageItem: (itemId: string, posX: number, posY: number) => Promise<void>;
+  moveCageItem: (
+    itemId: string,
+    posX: number,
+    posY: number,
+    scale?: number,
+    flipped?: boolean,
+  ) => Promise<void>;
+  storeCageItem: (itemId: string) => Promise<void>;
+  placeCageItem: (itemMasterId: ItemId) => Promise<void>;
+  resizeHamster: (scale: number) => Promise<void>;
 }
 
 const GameStateContext = createContext<GameStateContextValue | null>(null);
@@ -87,8 +96,26 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(await gameApi.performIdleActivity(itemId));
   }
 
-  async function moveCageItem(itemId: string, posX: number, posY: number) {
-    setState(await gameApi.moveCageItem(itemId, posX, posY));
+  async function moveCageItem(
+    itemId: string,
+    posX: number,
+    posY: number,
+    scale?: number,
+    flipped?: boolean,
+  ) {
+    setState(await gameApi.moveCageItem(itemId, posX, posY, scale, flipped));
+  }
+
+  async function storeCageItem(itemId: string) {
+    setState(await gameApi.storeCageItem(itemId));
+  }
+
+  async function placeCageItem(itemMasterId: ItemId) {
+    setState(await gameApi.placeCageItem(itemMasterId));
+  }
+
+  async function resizeHamster(scale: number) {
+    setState(await gameApi.resizeHamster(scale));
   }
 
   return (
@@ -108,6 +135,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         performHamsterAction,
         performIdleActivity,
         moveCageItem,
+        storeCageItem,
+        placeCageItem,
+        resizeHamster,
       }}
     >
       {children}
@@ -148,6 +178,9 @@ export function useGameState() {
     performHamsterAction: ctx.performHamsterAction,
     performIdleActivity: ctx.performIdleActivity,
     moveCageItem: ctx.moveCageItem,
+    storeCageItem: ctx.storeCageItem,
+    placeCageItem: ctx.placeCageItem,
+    resizeHamster: ctx.resizeHamster,
     refresh: ctx.refresh,
   };
 }

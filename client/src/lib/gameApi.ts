@@ -65,9 +65,30 @@ export function performIdleActivity(itemId: IdleActivityItemId): Promise<GameSta
   });
 }
 
-export function moveCageItem(itemId: string, posX: number, posY: number): Promise<GameStateResponse> {
+export function moveCageItem(
+  itemId: string,
+  posX: number,
+  posY: number,
+  scale?: number,
+  flipped?: boolean,
+): Promise<GameStateResponse> {
   return apiRequest<GameStateResponse>(`/hamster/cage-items/${itemId}`, {
     method: "PATCH",
-    body: JSON.stringify({ posX, posY }),
+    body: JSON.stringify({ posX, posY, scale, flipped }),
+  });
+}
+
+export function storeCageItem(itemId: string): Promise<GameStateResponse> {
+  return apiRequest<GameStateResponse>(`/hamster/cage-items/${itemId}/store`, { method: "PATCH" });
+}
+
+export function placeCageItem(itemMasterId: ItemId): Promise<GameStateResponse> {
+  return apiRequest<GameStateResponse>(`/hamster/cage-items/${itemMasterId}/place`, { method: "POST" });
+}
+
+export function resizeHamster(scale: number): Promise<GameStateResponse> {
+  return apiRequest<GameStateResponse>("/hamster/display-scale", {
+    method: "PATCH",
+    body: JSON.stringify({ scale }),
   });
 }

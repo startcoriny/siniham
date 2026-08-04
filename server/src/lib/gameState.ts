@@ -216,11 +216,13 @@ export async function serializeState(userId: string) {
     discoveredBehaviors: Object.fromEntries(
       behaviorLogs.map((b) => [b.behaviorType, b.firstDiscoveredAt.toISOString().slice(0, 10)]),
     ),
-    cageItems: cageItems.map((item) => ({
+    cageItems: cageItems.filter((item) => item.isPlaced).map((item) => ({
       id: item.id,
       itemId: item.itemMasterId,
       posX: item.posX,
       posY: item.posY,
+      scale: item.scale,
+      flipped: item.flipped,
     })),
     hamster: hamster
       ? {
@@ -238,6 +240,7 @@ export async function serializeState(userId: string) {
           },
           growthStage: hamster.growthStage,
           state: hamster.state,
+          displayScale: hamster.displayScale,
           createdAt: hamster.createdAt.toISOString(),
         }
       : null,
