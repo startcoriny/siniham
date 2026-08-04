@@ -1,11 +1,12 @@
 // 기획서 화면 9. 설정 및 계정
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PixelCard from "../components/common/PixelCard";
 import PixelButton from "../components/common/PixelButton";
 import Toggle from "../components/common/Toggle";
 import Modal from "../components/common/Modal";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../components/common/Toast";
 
 const SETTINGS_STORAGE_KEY = "siniham-mock-preferences";
 
@@ -28,9 +29,11 @@ function loadPreferences(): Preferences {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { nickname, logout } = useAuth();
+  const { nickname, logout, deleteAccount } = useAuth();
+  const { showToast } = useToast();
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
   const [confirmMode, setConfirmMode] = useState<"logout" | "withdraw" | null>(null);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   function updatePreference<K extends keyof Preferences>(key: K, value: Preferences[K]) {
     const next = { ...preferences, [key]: value };
@@ -44,9 +47,15 @@ export default function SettingsPage() {
   }
 
   async function handleWithdraw() {
-    // 계정/데이터를 실제로 삭제하는 API는 아직 없다. 지금은 로그아웃과 동일하게 동작한다.
-    await logout();
-    navigate("/");
+    setIsWithdrawing(true);
+    try {
+      await deleteAccount();
+      navigate("/");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "탈퇴 처리에 실패했어요.");
+    } finally {
+      setIsWithdrawing(false);
+    }
   }
 
   return (
@@ -77,12 +86,12 @@ export default function SettingsPage() {
       </PixelCard>
 
       <PixelCard className="mb-4 flex flex-col gap-2 text-sm text-brown/70">
-        <button type="button" className="text-left hover:underline">
+        <Link to="/terms" className="hover:underline">
           이용약관
-        </button>
-        <button type="button" className="text-left hover:underline">
+        </Link>
+        <Link to="/privacy" className="hover:underline">
           개인정보처리방침
-        </button>
+        </Link>
         <p className="text-brown/40">버전 0.0.1</p>
       </PixelCard>
 
@@ -117,13 +126,19 @@ export default function SettingsPage() {
         title="회원 탈퇴"
       >
         <p className="mb-4 text-brown">
-          탈퇴하면 지금까지 모은 재화와 아이템이 모두 사라져요. 정말 탈퇴하시겠어요?
+          탈퇴하면 햄스터와 케이지, 정원, 재화와 아이템이 모두 삭제되고 되돌릴 수 없어요. 정말
+          탈퇴하시겠어요?
         </p>
         <div className="flex gap-2">
           <PixelButton variant="secondary" className="flex-1" onClick={() => setConfirmMode(null)}>
             취소
           </PixelButton>
-          <PixelButton variant="danger" className="flex-1" onClick={handleWithdraw}>
+          <PixelButton
+            variant="danger"
+            className="flex-1"
+            loading={isWithdrawing}
+            onClick={handleWithdraw}
+          >
             탈퇴하기
           </PixelButton>
         </div>

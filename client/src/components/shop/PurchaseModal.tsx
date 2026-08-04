@@ -18,7 +18,9 @@ export default function PurchaseModal({ item, currency, onClose, onConfirm }: Pu
   return (
     <Modal open onClose={onClose} title={`${item.name} 구매`}>
       <p className="mb-1 text-brown">{item.description}</p>
-      <p className="mb-4 text-sm text-brown/70">가격 {item.cost} / 보유 재화 {currency}</p>
+      <p className="mb-4 text-sm text-brown/70">
+        가격 {item.cost === 0 ? "무료" : item.cost} / 보유 재화 {currency}
+      </p>
 
       {!canAfford && (
         <p className="mb-4 text-sm text-danger">
@@ -31,7 +33,7 @@ export default function PurchaseModal({ item, currency, onClose, onConfirm }: Pu
           취소
         </PixelButton>
         <PixelButton onClick={onConfirm} disabled={!canAfford} className="flex-1">
-          구매하기
+          {item.cost === 0 ? "무료로 받기" : "구매하기"}
         </PixelButton>
       </div>
     </Modal>

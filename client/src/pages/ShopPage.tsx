@@ -7,7 +7,14 @@ import PurchaseModal from "../components/shop/PurchaseModal";
 import { useGameState } from "../context/GameStateContext";
 import { useToast } from "../components/common/Toast";
 
-const PURCHASABLE_ITEM_IDS: ItemId[] = ["HANDHELD_WATER_BOTTLE", "WATER_BOWL", "WHEEL", "TUNNEL"];
+const PURCHASABLE_ITEM_IDS: ItemId[] = [
+  "HANDHELD_WATER_BOTTLE",
+  "WATER_BOWL",
+  "WHEEL",
+  "SAND_BATH",
+  "SNACK_DISH",
+  "LOOKOUT",
+];
 
 export default function ShopPage() {
   const { currency, ownedItemIds, purchaseItem } = useGameState();

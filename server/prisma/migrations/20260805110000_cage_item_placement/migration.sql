@@ -1,0 +1,2 @@
+ALTER TABLE "CageItem"
+ADD COLUMN "isPlaced" BOOLEAN NOT NULL DEFAULT true;

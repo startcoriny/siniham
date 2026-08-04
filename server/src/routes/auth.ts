@@ -71,8 +71,8 @@ authRouter.post("/login", async (req, res) => {
     return;
   }
 
-  await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
-
+  // lastActiveAt은 여기서 갱신하지 않는다. 갱신해버리면 자리를 비운 간격이 사라져서
+  // 로그인 직후 첫 /api/state가 오프라인 진행(햄스터 상태 감소, 정원 소식)을 계산하지 못한다.
   const token = signToken({ userId: user.id });
   setAuthCookie(res, token);
 
@@ -81,6 +81,18 @@ authRouter.post("/login", async (req, res) => {
 });
 
 authRouter.post("/logout", (_req, res) => {
+  res.clearCookie(AUTH_COOKIE_NAME, { path: "/" });
+  res.status(204).send();
+});
+
+// 회원 탈퇴. 연관 테이블(Hamster/CageItem/GardenPlot/Mission/BehaviorLog)은 onDelete: Cascade로 함께 지워진다.
+authRouter.delete("/me", requireAuth, async (req, res) => {
+  const deleted = await prisma.user.deleteMany({ where: { id: req.userId } });
+  if (deleted.count === 0) {
+    res.status(401).json({ error: "인증이 필요합니다." });
+    return;
+  }
+
   res.clearCookie(AUTH_COOKIE_NAME, { path: "/" });
   res.status(204).send();
 });

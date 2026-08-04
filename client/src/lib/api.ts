@@ -17,3 +17,8 @@ export function logout(): Promise<void> {
 export function fetchMe(): Promise<AuthResponse> {
   return apiRequest<AuthResponse>("/auth/me");
 }
+
+// 회원 탈퇴. 계정과 게임 데이터를 지우고 인증 쿠키까지 삭제한다.
+export function deleteAccount(): Promise<void> {
+  return apiRequest<void>("/auth/me", { method: "DELETE" });
+}

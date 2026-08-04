@@ -13,9 +13,19 @@ export interface GameStatePlot {
   plantedAt: number | null;
 }
 
+// 자리를 비운 사이 정원에 일어난 변화. 확인(ack)하기 전까지 유지되고, 변화가 없으면 null이다.
+export interface GardenSummary {
+  grownCount: number;
+  weedCount: number;
+  since: string | null;
+}
+
 export interface GameStateResponse {
   currency: number;
   seedCount: number;
+  // 한국 자정까지 남은 시간(ms). 응답 시점 기준이라 화면에서 경과분을 빼서 표시한다.
+  missionResetInMs: number;
+  gardenSummary: GardenSummary | null;
   ownedItemIds: ItemId[];
   gardenPlots: GameStatePlot[];
   missionProgress: Record<MissionId, { progress: number; claimed: boolean }>;

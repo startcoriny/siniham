@@ -75,9 +75,27 @@ export interface Hamster {
   growthStage: string;
   createdAt: string;
   state: "IDLE" | "SLEEPING";
+  displayScale: number;
 }
 
-export type HamsterAction = "FEED" | "WATER" | "PET" | "CLEAN";
+// 사용자가 버튼으로 시키는 돌보기 행동. WASH는 앞발로 얼굴을 씻는 "세수하기"다.
+export type HamsterAction = "FEED" | "WATER" | "PET" | "WASH" | "SLEEP";
+
+// 케이지를 보고 있을 때 햄스터가 가구를 찾아가 스스로 하는 행동. 가구를 보유해야 발생한다.
+export type IdleActivityItemId =
+  | "FOOD_BOWL"
+  | "WATER_BOTTLE"
+  | "HANDHELD_WATER_BOTTLE"
+  | "WATER_BOWL"
+  | "WHEEL"
+  | "HOUSE"
+  | "SAND_BATH"
+  | "SNACK_DISH"
+  | "LOOKOUT";
+
+export interface IdleActivityRequest {
+  itemId: IdleActivityItemId;
+}
 
 export interface CreateHamsterRequest {
   name: string;

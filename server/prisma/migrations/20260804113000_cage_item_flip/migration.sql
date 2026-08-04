@@ -1,0 +1,2 @@
+ALTER TABLE "CageItem"
+  ADD COLUMN "flipped" BOOLEAN NOT NULL DEFAULT false;
