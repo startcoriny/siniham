@@ -10,6 +10,7 @@ import {
     ITEM_MASTERS,
 } from "@shared/types/cage";
 import HamsterSprite from "../components/hamster/HamsterSprite";
+import { hasHamsterAnimation } from "../lib/hamsterAssets";
 import Modal from "../components/common/Modal";
 import PixelButton from "../components/common/PixelButton";
 import StatusBar from "../components/common/StatusBar";
@@ -803,7 +804,8 @@ export default function CagePage() {
                             className={
                                 squishing
                                     ? "animate-pet-squish"
-                                    : LOOPING_BEHAVIORS.includes(behavior)
+                                    : LOOPING_BEHAVIORS.includes(behavior) &&
+                                        !hasHamsterAnimation(hamster.appearance, behavior)
                                       ? "animate-action-loop"
                                       : ""
                             }
@@ -816,7 +818,7 @@ export default function CagePage() {
                                 size={hamsterSize}
                                 className={`block ${activeWheelId ? "animate-bounce" : ""}`}
                                 // 쳇바퀴는 빠르게 달리는 연출이라 원래 속도로, 케이지 산책은 느긋하게 재생한다.
-                                frameIntervalMs={activeWheelId ? 160 : 360}
+                                frameIntervalMs={behavior === "WALK" ? (activeWheelId ? 160 : 360) : undefined}
                             />
                         </div>
                     </button>

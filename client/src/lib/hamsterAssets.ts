@@ -13,6 +13,17 @@ const animationModules = import.meta.glob("/src/assets/hamsters/*/*/frame-*.png"
   import: "default",
 }) as Record<string, string>;
 
+const HAMSTER_ANIMATION_INTERVAL_MS: Partial<Record<HamsterBehavior, number>> = {
+  EAT: 180,
+  DRINK: 200,
+  WASH: 180,
+  SLEEP: 450,
+};
+
+export function getHamsterAnimationIntervalMs(behavior: HamsterBehavior): number {
+  return HAMSTER_ANIMATION_INTERVAL_MS[behavior] ?? 200;
+}
+
 export function getHamsterAnimationFrames(
   appearance: HamsterAppearance,
   behavior: HamsterBehavior,
@@ -24,6 +35,13 @@ export function getHamsterAnimationFrames(
     .filter(([path]) => path.startsWith(prefix))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, url]) => url);
+}
+
+export function hasHamsterAnimation(
+  appearance: HamsterAppearance,
+  behavior: HamsterBehavior,
+): boolean {
+  return getHamsterAnimationFrames(appearance, behavior).length > 1;
 }
 
 export function getHamsterSpriteVariants(

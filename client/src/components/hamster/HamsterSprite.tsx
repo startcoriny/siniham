@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { HamsterAppearance, HamsterBehavior } from "@shared/types/hamster";
 import {
   getHamsterAnimationFrames,
+  getHamsterAnimationIntervalMs,
   getHamsterBlinkSrc,
   getHamsterSpriteSrc,
 } from "../../lib/hamsterAssets";
@@ -32,12 +33,16 @@ export default function HamsterSprite({
   size = 96,
   facing = "right",
   className = "",
-  frameIntervalMs = 200,
+  frameIntervalMs,
 }: HamsterSpriteProps) {
   const frames = getHamsterAnimationFrames(appearance, behavior);
+  const effectiveFrameIntervalMs = frameIntervalMs ?? getHamsterAnimationIntervalMs(behavior);
   const [frameIndex, setFrameIndex] = useState(0);
   const [failed, setFailed] = useState(false);
   const [blinking, setBlinking] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
   // 가만히 서 있을 때만 깜박인다. 움직이는 동안에는 눈에 띄지도 않고 연출과 겹친다.
   const blinkSrc = behavior === "IDLE" ? getHamsterBlinkSrc(appearance) : undefined;
@@ -46,18 +51,25 @@ export default function HamsterSprite({
     : frames[frameIndex] ?? getHamsterSpriteSrc(appearance, behavior);
 
   useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
     setFrameIndex(0);
     setFailed(false);
-    if (frames.length < 2) return;
+    if (reduceMotion || frames.length < 2) return;
     const timer = window.setInterval(() => {
       setFrameIndex((current) => (current + 1) % frames.length);
-    }, frameIntervalMs);
+    }, effectiveFrameIntervalMs);
     return () => window.clearInterval(timer);
-  }, [appearance, behavior, frames.length, frameIntervalMs]);
+  }, [appearance, behavior, frames.length, effectiveFrameIntervalMs, reduceMotion]);
 
   useEffect(() => {
     setBlinking(false);
-    if (!blinkSrc) return;
+    if (reduceMotion || !blinkSrc) return;
 
     let cancelled = false;
     let timer = 0;
@@ -86,7 +98,7 @@ export default function HamsterSprite({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [blinkSrc]);
+  }, [blinkSrc, reduceMotion]);
 
   if (failed || !src) {
     return (
