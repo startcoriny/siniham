@@ -1,4 +1,4 @@
-// 실제 인증 세션. httpOnly 쿠키 기반이라 앱 시작 시 /api/auth/me로 세션 유무를 확인한다.
+// 서버 없이 localStorage 목업 세션을 사용하는 인증 상태.
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { AuthUser } from "@shared/types/auth";

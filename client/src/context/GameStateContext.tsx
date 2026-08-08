@@ -1,4 +1,4 @@
-// 실제 게임 상태. 로그인되면 /api/state로 불러오고, 각 액션은 서버 API를 호출해 최신 상태로 교체한다.
+// 로그인되면 localStorage 목업 상태를 불러오고, 각 액션 결과로 최신 상태를 교체한다.
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { ItemId } from "@shared/types/cage";
