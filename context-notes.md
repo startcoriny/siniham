@@ -402,14 +402,17 @@ npm install로 최신 버전을 그대로 받았더니 기억(학습 시점) 기
 
 `.env.production.example`에 남아 있는 `DOMAIN`, `ACME_EMAIL`은 Caddy 전용이라 이제 쓰이지 않는다. 권한 설정상 이 대화에서 편집하지 못해 그대로 두었다.
 
-## 2026-08-12 - 운영 이미지에서 prisma CLI가 빠지던 문제
+## 2026-08-12 - Dockerfile의 NODE_ENV와 npm ci는 문제가 아니다 (검증 완료)
 
-`Dockerfile` 런타임 스테이지가 `ENV NODE_ENV=production`을 `npm ci`보다 먼저 선언하고 있었다. npm은 `NODE_ENV=production`이면 `omit=dev`가 기본값이라 devDependencies를 설치하지 않는다(`NODE_ENV=production npm config get omit` → `dev`로 확인). 그 결과 런타임 이미지에 `prisma`, `typescript`, `dotenv`가 없어서 두 군데가 깨진다.
+런타임 스테이지가 `ENV NODE_ENV=production`을 `npm ci`보다 먼저 선언하므로 devDependencies가 빠질 것이라고 의심했다. `NODE_ENV=production npm config get omit`이 `dev`를 반환하는 것이 근거였다. 실제로 이미지를 빌드해 확인한 결과 **틀린 추측이었다.**
 
-- CMD의 `npx prisma migrate deploy`가 prisma CLI를 찾지 못한다. 설령 npx가 받아오더라도 `prisma.config.ts`는 TypeScript라 로드에 typescript가 필요하고, 그 안의 `import "dotenv/config"`도 실패한다. 설정을 못 읽으면 파일 주석에 적힌 `datasource.url property is required`가 그대로 재현된다.
-- 서버 번들이 `--packages=external`로 빌드되어 `dist/index.js` 첫 줄에 `import "dotenv/config"`가 그대로 남는다. 마이그레이션을 통과해도 기동 시 모듈을 못 찾고 죽는다.
+`node:24-alpine`(npm 11.16.0)에서 `ENV NODE_ENV=production` 상태로 `npm ci`를 돌리면 `npm config get omit`은 여전히 `dev`를 반환하지만, `dotenv`, `prisma`, `typescript`가 모두 `node_modules`에 설치된다. `npm ci --include=dev`를 붙인 결과와 동일하다. 이 프로젝트는 루트 `package.json`에 의존성이 하나도 없고 전부 workspace 패키지(`client`, `server`)에 있는데, 이 구성에서는 workspace의 devDependencies가 `omit=dev`와 무관하게 설치된다.
 
-`RUN npm ci --include=dev`로 고쳤다. `ENV` 위치를 옮기는 방법도 있지만, compose가 아닌 경로로 이미지를 단독 실행할 때도 `NODE_ENV`가 유지되어야 하므로 플래그를 명시하는 쪽을 골랐다. 이미지가 커지는 대신 의도가 드러난다.
+그러므로 `Dockerfile`은 고칠 것이 없다. `npm ci --include=dev`로 바꿨던 커밋은 되돌렸다.
+
+교훈 두 가지를 남긴다. `npm config get omit`은 설정 해석 결과일 뿐 `npm ci`의 실제 설치 동작이 아니다. 그리고 운영이 7일째 정상 동작 중이라는 사실 자체가 이 가설의 반증이었는데, 그걸 예외 상황으로 치부하고 가설을 유지한 것이 잘못이었다. 동작하는 시스템을 두고 "동작할 리 없다"는 결론이 나오면 결론이 아니라 가정을 의심해야 한다.
+
+검증은 앱 전체를 빌드하지 않고 package.json 3개만 넣은 최소 컨텍스트로 `npm ci` 단계만 재현해서 했다. 같은 의심이 다시 들면 이 방식이 1~2분이면 끝난다.
 
 ## 2026-08-12 - 실서버 nginx 설정 대조
 
