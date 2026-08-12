@@ -50,22 +50,20 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## 5. nginx 설정
 
-`/etc/nginx/sites-available/siniham`을 만들고 `sites-enabled`로 심볼릭 링크를 겁니다.
+운영 도메인은 `siniham.app`이며 `www.siniham.app`도 같은 서버로 받습니다. 설정 파일은 `/etc/nginx/sites-available/siniham`에 두고 `sites-enabled`로 심볼릭 링크를 겁니다.
+
+처음에는 80 포트 블록만 작성합니다.
 
 ```nginx
 server {
-    server_name <도메인>;
-
-    gzip on;
-    gzip_types text/css application/javascript application/json image/svg+xml;
-
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    listen 80;
+    listen [::]:80;
+    server_name siniham.app www.siniham.app;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -76,15 +74,31 @@ server {
 
 `X-Forwarded-For`를 반드시 넘겨야 합니다. 서버가 `trust proxy`로 이 헤더를 읽어 요청 제한을 IP별로 겁니다. 없으면 모든 요청이 같은 IP로 보여서 요청 제한이 전체 사용자에게 한꺼번에 걸립니다.
 
-인증서는 certbot이 발급하고 위 블록에 443 설정을 자동으로 추가합니다.
+그다음 certbot을 실행하면 이 블록을 443용으로 고쳐 쓰고, 80은 HTTPS로 리다이렉트하는 별도 블록으로 분리합니다.
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d <도메인>
+sudo certbot --nginx -d siniham.app -d www.siniham.app
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-certbot은 갱신 타이머를 함께 등록합니다. 상태는 `systemctl status certbot.timer`로 봅니다.
+certbot은 갱신 타이머를 함께 등록합니다. 상태는 `systemctl status certbot.timer`로 봅니다. `# managed by Certbot` 주석이 붙은 줄은 갱신 때 다시 쓰이므로 직접 고치지 않습니다.
+
+### 보안 헤더와 압축
+
+443 블록의 `server { ... }` 안에 직접 추가합니다. certbot이 만들어주지 않는 부분입니다.
+
+```nginx
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+```
+
+HSTS는 브라우저가 `max-age` 기간 동안 기억합니다. 한 번 켜면 그동안 이 도메인을 HTTP로 열 수 없으니, 도메인을 계속 쓸 것이 확실할 때 넣습니다.
 
 ## 6. 확인
 

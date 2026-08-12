@@ -410,3 +410,11 @@ npm install로 최신 버전을 그대로 받았더니 기억(학습 시점) 기
 - 서버 번들이 `--packages=external`로 빌드되어 `dist/index.js` 첫 줄에 `import "dotenv/config"`가 그대로 남는다. 마이그레이션을 통과해도 기동 시 모듈을 못 찾고 죽는다.
 
 `RUN npm ci --include=dev`로 고쳤다. `ENV` 위치를 옮기는 방법도 있지만, compose가 아닌 경로로 이미지를 단독 실행할 때도 `NODE_ENV`가 유지되어야 하므로 플래그를 명시하는 쪽을 골랐다. 이미지가 커지는 대신 의도가 드러난다.
+
+## 2026-08-12 - 실서버 nginx 설정 대조
+
+`/etc/nginx/sites-enabled/`의 실제 내용을 확인해 `docs/deployment.md`를 맞췄다. 도메인은 `siniham.app`과 `www.siniham.app` 두 개이고, certbot이 443 블록과 80 리다이렉트 블록을 이미 생성해 둔 상태다. nginx가 서빙하는 사이트는 siniham 하나뿐이다.
+
+Caddyfile에 있던 gzip과 보안 헤더 4종(HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy)은 실서버 nginx에 없다. Caddy가 한 번도 쓰인 적이 없으니 이 설정도 운영에 반영된 적이 없다. 문서에 별도 절로 분리해 두었고 서버 적용은 아직 하지 않았다.
+
+실제 설정에는 `proxy_http_version 1.1;`이 있어 문서에도 반영했다.
