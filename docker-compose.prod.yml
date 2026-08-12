@@ -1,22 +1,5 @@
-# 운영용 구성. 외부에 열리는 것은 Caddy의 80/443뿐이고, 앱과 DB는 도커 내부 네트워크에만 있다.
+# 운영용 구성. HTTPS 종단은 호스트에 설치된 nginx가 맡고, 앱은 localhost에만, DB는 도커 내부 네트워크에만 있다.
 services:
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # 인증서와 발급 상태. 지우면 재발급을 받으므로 Let's Encrypt 발급 한도에 걸릴 수 있다.
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - app
-
   app:
     build: .
     restart: unless-stopped
@@ -25,9 +8,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
-    # 포트를 열지 않는다. Caddy만 app:3000으로 접근한다.
-    expose:
-      - "3000"
+    # 공인 IP에 열지 않는다. 호스트 nginx가 127.0.0.1:3000으로만 프록시한다.
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -57,5 +40,3 @@ services:
 
 volumes:
   db-data:
-  caddy-data:
-  caddy-config:

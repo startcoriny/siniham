@@ -391,3 +391,22 @@ npm install로 최신 버전을 그대로 받았더니 기억(학습 시점) 기
 자율 행동 선택 시 보유 중인 쳇바퀴와 집을 확인한다. 쳇바퀴는 약 20% 확률로 가구 좌표까지 이동해 2.6초 동안 걷기 프레임으로 달리는 모습을 보여준다. 집은 다음 20% 구간에서 입구까지 이동한 뒤 햄스터를 숨기고 3초간 `Z z z` 상태로 쉬었다가 집 옆으로 나온다. 행동 위치는 사용자가 꾸미기에서 저장한 최신 가구 좌표를 따른다.
 
 쳇바퀴 가구 자체도 회전해 보이도록 `cage-items/wheel-spin/frame-01.png`부터 `frame-04.png`까지 제작했다. 받침, 지지대, 중심축은 고정하고 원형 림, 살, 발판의 회전 위상만 바꾼 프레임이며 햄스터가 쳇바퀴를 사용하는 2.6초 동안 160ms 간격으로 반복한다.
+
+## 2026-08-12 - 운영 리버스 프록시를 Caddy에서 호스트 nginx로 정리
+
+운영 서버(`/opt/siniham`)를 확인해 보니 실제 구성이 저장소와 달랐다. `docker ps`에 `siniham-app-1`과 `siniham-db-1` 두 개만 떠 있고, 80/443은 도커가 아니라 호스트에 apt로 설치된 nginx가 잡고 있었다. 즉 `docker-compose.prod.yml`의 Caddy 서비스는 실서버에서 한 번도 쓰인 적이 없고, 그대로 배포했다면 포트 충돌로 못 떴을 구성이었다.
+
+서버를 저장소에 맞추는 대신 저장소를 서버에 맞추기로 했다. 이미 동작 중인 certbot 인증서를 건드리지 않는 쪽이 위험이 낮고, nginx를 내렸다가 Let's Encrypt 재발급이 실패하면 사이트가 통째로 내려가기 때문이다. `docker-compose.prod.yml`에서 caddy 서비스와 `caddy-data`, `caddy-config` 볼륨을 제거하고 `Caddyfile`을 삭제했다. `docs/deployment.md`에는 Caddyfile이 하던 gzip, 보안 헤더, 리버스 프록시에 대응하는 nginx 서버 블록과 certbot 절차를 대신 넣었다.
+
+앱 컨테이너는 `expose: 3000`에서 `ports: 127.0.0.1:3000:3000`으로 바꿨다. 실서버는 `0.0.0.0:3000`으로 열려 있어 HTTPS를 우회해 API에 직접 붙을 수 있는 상태였다. nginx만 프록시하면 되므로 루프백에만 바인딩한다.
+
+`.env.production.example`에 남아 있는 `DOMAIN`, `ACME_EMAIL`은 Caddy 전용이라 이제 쓰이지 않는다. 권한 설정상 이 대화에서 편집하지 못해 그대로 두었다.
+
+## 2026-08-12 - 운영 이미지에서 prisma CLI가 빠지던 문제
+
+`Dockerfile` 런타임 스테이지가 `ENV NODE_ENV=production`을 `npm ci`보다 먼저 선언하고 있었다. npm은 `NODE_ENV=production`이면 `omit=dev`가 기본값이라 devDependencies를 설치하지 않는다(`NODE_ENV=production npm config get omit` → `dev`로 확인). 그 결과 런타임 이미지에 `prisma`, `typescript`, `dotenv`가 없어서 두 군데가 깨진다.
+
+- CMD의 `npx prisma migrate deploy`가 prisma CLI를 찾지 못한다. 설령 npx가 받아오더라도 `prisma.config.ts`는 TypeScript라 로드에 typescript가 필요하고, 그 안의 `import "dotenv/config"`도 실패한다. 설정을 못 읽으면 파일 주석에 적힌 `datasource.url property is required`가 그대로 재현된다.
+- 서버 번들이 `--packages=external`로 빌드되어 `dist/index.js` 첫 줄에 `import "dotenv/config"`가 그대로 남는다. 마이그레이션을 통과해도 기동 시 모듈을 못 찾고 죽는다.
+
+`RUN npm ci --include=dev`로 고쳤다. `ENV` 위치를 옮기는 방법도 있지만, compose가 아닌 경로로 이미지를 단독 실행할 때도 `NODE_ENV`가 유지되어야 하므로 플래그를 명시하는 쪽을 골랐다. 이미지가 커지는 대신 의도가 드러난다.
