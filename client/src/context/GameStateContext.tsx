@@ -17,6 +17,7 @@ interface GameStateContextValue {
   purchaseItem: (itemId: ItemId) => Promise<void>;
   purchaseSeed: (cropId: CropId, quantity?: number) => Promise<void>;
   plantSeed: (plotId: number, cropId: CropId) => Promise<void>;
+  clearGardenPlot: (plotId: number) => Promise<void>;
   removeWeed: (plotId: number) => Promise<void>;
   harvestPlot: (plotId: number) => Promise<void>;
   eatProduce: (cropId: CropId) => Promise<void>;
@@ -69,6 +70,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   async function plantSeed(plotId: number, cropId: CropId) {
     setState(await gameApi.plantSeed(plotId, cropId));
+  }
+
+  async function clearGardenPlot(plotId: number) {
+    setState(await gameApi.clearGardenPlot(plotId));
   }
 
   async function removeWeed(plotId: number) {
@@ -138,6 +143,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         purchaseItem,
         purchaseSeed,
         plantSeed,
+        clearGardenPlot,
         removeWeed,
         harvestPlot,
         eatProduce,
@@ -183,6 +189,7 @@ export function useGameState() {
     purchaseItem: ctx.purchaseItem,
     purchaseSeed: ctx.purchaseSeed,
     plantSeed: ctx.plantSeed,
+    clearGardenPlot: ctx.clearGardenPlot,
     removeWeed: ctx.removeWeed,
     harvestPlot: ctx.harvestPlot,
     eatProduce: ctx.eatProduce,

@@ -117,6 +117,25 @@ gardenRouter.post("/:plotIndex/plant", requireAuth, async (req, res) => {
   res.status(200).json(await serializeState(userId));
 });
 
+gardenRouter.delete("/:plotIndex", requireAuth, async (req, res) => {
+  const parsed = plotParamsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: "밭 번호가 올바르지 않습니다." });
+    return;
+  }
+  const userId = req.userId!;
+  const plot = await getPlotOr404(userId, parsed.data.plotIndex);
+  if (!plot || plot.status === "EMPTY") {
+    res.status(400).json({ error: "이미 비어 있는 밭이에요." });
+    return;
+  }
+  await prisma.gardenPlot.update({
+    where: { id: plot.id },
+    data: { cropId: null, status: "EMPTY", hasWeed: false, plantedAt: null, weedFrom: null },
+  });
+  res.status(200).json(await serializeState(userId));
+});
+
 gardenRouter.post("/:plotIndex/remove-weed", requireAuth, async (req, res) => {
   const parsed = plotParamsSchema.safeParse(req.params);
   if (!parsed.success) {

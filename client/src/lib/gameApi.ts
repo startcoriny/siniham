@@ -36,6 +36,10 @@ export function plantSeed(plotId: number, cropId: CropId): Promise<GameStateResp
   });
 }
 
+export function clearGardenPlot(plotId: number): Promise<GameStateResponse> {
+  return apiRequest<GameStateResponse>(`/garden/${plotId}`, { method: "DELETE" });
+}
+
 export function removeWeed(plotId: number): Promise<GameStateResponse> {
   return apiRequest<GameStateResponse>(`/garden/${plotId}/remove-weed`, { method: "POST" });
 }
