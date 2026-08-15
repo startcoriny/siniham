@@ -19,6 +19,7 @@ interface GameStateContextValue {
   plantSeed: (plotId: number, cropId: CropId) => Promise<void>;
   clearGardenPlot: (plotId: number) => Promise<void>;
   removeWeed: (plotId: number) => Promise<void>;
+  fillGardenWithTestWeeds: () => Promise<void>;
   harvestPlot: (plotId: number) => Promise<void>;
   eatProduce: (cropId: CropId) => Promise<void>;
   ackGardenSummary: () => Promise<void>;
@@ -78,6 +79,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   async function removeWeed(plotId: number) {
     setState(await gameApi.removeWeed(plotId));
+  }
+
+  async function fillGardenWithTestWeeds() {
+    setState(await gameApi.fillGardenWithTestWeeds());
   }
 
   async function harvestPlot(plotId: number) {
@@ -145,6 +150,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         plantSeed,
         clearGardenPlot,
         removeWeed,
+        fillGardenWithTestWeeds,
         harvestPlot,
         eatProduce,
         ackGardenSummary,
@@ -191,6 +197,7 @@ export function useGameState() {
     plantSeed: ctx.plantSeed,
     clearGardenPlot: ctx.clearGardenPlot,
     removeWeed: ctx.removeWeed,
+    fillGardenWithTestWeeds: ctx.fillGardenWithTestWeeds,
     harvestPlot: ctx.harvestPlot,
     eatProduce: ctx.eatProduce,
     ackGardenSummary: ctx.ackGardenSummary,

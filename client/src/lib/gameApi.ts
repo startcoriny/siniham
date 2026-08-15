@@ -44,6 +44,10 @@ export function removeWeed(plotId: number): Promise<GameStateResponse> {
   return apiRequest<GameStateResponse>(`/garden/${plotId}/remove-weed`, { method: "POST" });
 }
 
+export function fillGardenWithTestWeeds(): Promise<GameStateResponse> {
+  return apiRequest<GameStateResponse>("/garden/weeds/test-fill", { method: "POST" });
+}
+
 export function harvestPlot(plotId: number): Promise<GameStateResponse> {
   return apiRequest<GameStateResponse>(`/garden/${plotId}/harvest`, { method: "POST" });
 }

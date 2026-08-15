@@ -14,7 +14,7 @@ import type { GardenFarmerCommand } from "../components/garden/GardenFarmerHamst
 const REFRESH_INTERVAL_MS = 30_000;
 
 export default function GardenPage() {
-  const { gardenPlots, seedInventory, produceInventory, gardenSummary, plantSeed, clearGardenPlot, removeWeed, harvestPlot, eatProduce, ackGardenSummary, refresh } = useGameState();
+  const { gardenPlots, seedInventory, produceInventory, gardenSummary, plantSeed, clearGardenPlot, removeWeed, fillGardenWithTestWeeds, harvestPlot, eatProduce, ackGardenSummary, refresh } = useGameState();
   const { showToast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(gardenPlots[0]?.id ?? null);
   const [selectedCropId, setSelectedCropId] = useState<CropId>("CARROT");
@@ -32,9 +32,15 @@ export default function GardenPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    void fillGardenWithTestWeeds();
+    // 정원에 처음 진입할 때만 테스트용 잡초를 채운다. 뽑은 잡초는 다시 나타나지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function runWork(work: () => Promise<void>, message: string) {
-    try { await work(); showToast(message); }
-    catch (error) { showToast(error instanceof Error ? error.message : "정원 작업에 실패했어요."); }
+    try { await work(); showToast(message); return true; }
+    catch (error) { showToast(error instanceof Error ? error.message : "정원 작업에 실패했어요."); return false; }
   }
 
   const totalProduce = CROP_IDS.reduce((sum, id) => sum + produceInventory[id], 0);
@@ -51,6 +57,19 @@ export default function GardenPage() {
       type: "plant",
       target: selectedPlot,
       perform: () => runWork(() => plantSeed(plotId, cropId), `${CROP_MASTERS[cropId].name} 씨앗을 심었어요.`),
+    });
+  }
+
+  function queueWeedRemoval() {
+    if (!selectedPlot || !selectedPlot.hasWeed || farmerCommand) return;
+    const plotId = selectedPlot.id;
+    const weedPosition = (selectedPlot.rowIndex * 4 + selectedPlot.slotIndex) % 3;
+    setFarmerCommand({
+      id: Date.now(),
+      type: "weed",
+      target: selectedPlot,
+      side: weedPosition === 0 ? "right" : "left",
+      perform: () => runWork(() => removeWeed(plotId), "잡초를 뽑고 재화 1을 얻었어요."),
     });
   }
 
@@ -84,7 +103,7 @@ export default function GardenPage() {
         <div className="garden-seed-list">
           {GARDEN_CROPS.map((seed) => <button key={seed.id} type="button" onClick={() => setSelectedCropId(seed.id)} className={`garden-seed-card ${selectedCropId === seed.id ? "garden-seed-card--selected" : ""}`}><span className="garden-seed-packet garden-atlas-sprite" style={gardenSpriteStyle(seed.atlasX, "0%")} /><span>{seed.name}</span><small>{seedInventory[seed.id]}</small></button>)}
         </div>
-        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} busy={farmerCommand !== null} onPlant={queuePlanting} onRemoveWeed={() => runWork(() => removeWeed(selectedId!), "잡초를 뽑고 재화 1을 얻었어요.")} onHarvest={() => runWork(() => harvestPlot(selectedId!), "수확물이 바구니에 들어갔어요.")} onClearPlot={clearSelectedPlot} />
+        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} busy={farmerCommand !== null} onPlant={queuePlanting} onRemoveWeed={queueWeedRemoval} onHarvest={() => runWork(() => harvestPlot(selectedId!), "수확물이 바구니에 들어갔어요.")} onClearPlot={clearSelectedPlot} />
       </section>
 
       <Modal open={basketOpen} onClose={() => setBasketOpen(false)} title="수확 바구니">

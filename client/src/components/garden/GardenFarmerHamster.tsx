@@ -11,11 +11,16 @@ const plantModules = import.meta.glob("/src/assets/garden/farmer-plant-01/frame-
   import: "default",
 }) as Record<string, string>;
 
+const weedModules = import.meta.glob("/src/assets/garden/farmer-weed-01/frame-*.png", {
+  eager: true,
+  import: "default",
+}) as Record<string, string>;
+
 const COLUMN_X = [14, 38, 62, 86];
 const ROW_WORK_Y = [24, 45, 66, 86];
 // 위치 조정용 임시 고정 좌표: 3라인 1번째 칸.
 const LOCK_FARMER_POSITION = true;
-const FIXED_FARMER_POSITION = { x: 10, y: 10 };
+const FIXED_FARMER_POSITION = { x: 90, y: 80 };
 type PlantSidePosition = { x: number; y: number };
 type PlantActionPosition = { seedX: number; left: PlantSidePosition; right: PlantSidePosition };
 
@@ -59,18 +64,21 @@ type Position = { x: number; y: number };
 
 export type GardenFarmerCommand = {
   id: number;
-  type: "plant";
+  type: "plant" | "weed";
   target: { rowIndex: number; slotIndex: number };
-  perform: () => Promise<void>;
+  side?: "left" | "right";
+  perform: () => Promise<boolean>;
 };
 
 export default function GardenFarmerHamster({ target, command, onCommandComplete }: { target: { rowIndex: number; slotIndex: number } | null; command: GardenFarmerCommand | null; onCommandComplete: (id: number) => void }) {
   const walkFrames = useMemo(() => Object.entries(walkModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
   const plantFrames = useMemo(() => Object.entries(plantModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
+  const weedFrames = useMemo(() => Object.entries(weedModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
   const [position, setPosition] = useState<Position>(LOCK_FARMER_POSITION ? FIXED_FARMER_POSITION : { x: 50, y: 52 });
   const [facing, setFacing] = useState<"left" | "right">("right");
   const [moving, setMoving] = useState(false);
   const [planting, setPlanting] = useState(false);
+  const [weeding, setWeeding] = useState(false);
   const [movementDuration, setMovementDuration] = useState(2400);
   const [frameIndex, setFrameIndex] = useState(0);
   const movementTimer = useRef<number | null>(null);
@@ -103,14 +111,15 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
   }, [moveTo]);
 
   useEffect(() => {
-    const frames = planting ? plantFrames : walkFrames;
-    if ((!moving && !planting) || frames.length < 2) {
+    const frames = weeding ? weedFrames : planting ? plantFrames : walkFrames;
+    if ((!moving && !planting && !weeding) || frames.length < 2) {
       setFrameIndex(0);
       return;
     }
-    const animationTimer = window.setInterval(() => setFrameIndex((current) => planting ? Math.min(current + 1, frames.length - 1) : (current + 1) % frames.length), planting ? 380 : 130);
+    const playingAction = planting || weeding;
+    const animationTimer = window.setInterval(() => setFrameIndex((current) => playingAction ? Math.min(current + 1, frames.length - 1) : (current + 1) % frames.length), playingAction ? 380 : 130);
     return () => window.clearInterval(animationTimer);
-  }, [moving, planting, walkFrames, plantFrames]);
+  }, [moving, planting, weeding, walkFrames, plantFrames, weedFrames]);
 
   useEffect(() => {
     if (!command) return;
@@ -120,9 +129,28 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
 
     async function runCommand() {
       busyRef.current = true;
+      let activeWeedElement: HTMLElement | null = null;
       const positionConfig = PLANT_ACTION_POSITIONS[activeCommand.target.rowIndex]?.[activeCommand.target.slotIndex];
-      const plantSide = positionConfig && positionRef.current.x > positionConfig.seedX ? "right" : "left";
-      const workPosition = positionConfig?.[plantSide] ?? { x: 50, y: 52 };
+      const actionSide = activeCommand.side ?? (positionConfig && positionRef.current.x > positionConfig.seedX ? "right" : "left");
+      let workPosition = positionConfig?.[actionSide] ?? { x: 50, y: 52 };
+
+      if (activeCommand.type === "weed") {
+        const stage = document.querySelector<HTMLElement>(".garden-stage");
+        const weed = document.querySelector<HTMLElement>(
+          `.garden-slot[data-garden-row="${activeCommand.target.rowIndex}"][data-garden-slot="${activeCommand.target.slotIndex}"] .garden-weed`,
+        );
+        if (stage && weed) {
+          activeWeedElement = weed;
+          const stageRect = stage.getBoundingClientRect();
+          const weedRect = weed.getBoundingClientRect();
+          const weedX = ((weedRect.left + weedRect.width / 2 - stageRect.left) / stageRect.width) * 100;
+          const weedY = ((weedRect.top + weedRect.height / 2 - stageRect.top) / stageRect.height) * 100;
+          workPosition = {
+            x: weedX + (actionSide === "left" ? -4 : 2),
+            y: weedY - 1,
+          };
+        }
+      }
 
       async function walkSegment(next: Position) {
         const distance = Math.hypot(next.x - positionRef.current.x, next.y - positionRef.current.y);
@@ -156,15 +184,19 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
       await walkSegment(workPosition);
       if (cancelled) return;
       setMoving(false);
-      setFacing(plantSide === "left" ? "right" : "left");
+      setFacing(actionSide === "left" ? "right" : "left");
       setFrameIndex(0);
-      setPlanting(true);
+      if (activeCommand.type === "plant") setPlanting(true);
+      else setWeeding(true);
       await wait(1520);
       if (cancelled) return;
-      await activeCommand.perform();
+      if (activeCommand.type === "weed" && activeWeedElement) activeWeedElement.style.visibility = "hidden";
+      const succeeded = await activeCommand.perform();
+      if (!succeeded && activeWeedElement) activeWeedElement.style.visibility = "";
       await wait(1000);
       if (cancelled) return;
       setPlanting(false);
+      setWeeding(false);
       busyRef.current = false;
       onCommandComplete(activeCommand.id);
     }
@@ -179,11 +211,11 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
 
   return (
     <div
-      className={`garden-farmer-hamster ${moving ? "garden-farmer-hamster--moving" : planting ? "garden-farmer-hamster--planting" : "garden-farmer-hamster--idle"}`}
+      className={`garden-farmer-hamster ${moving ? "garden-farmer-hamster--moving" : planting ? "garden-farmer-hamster--planting" : weeding ? "garden-farmer-hamster--weeding" : "garden-farmer-hamster--idle"}`}
       style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: 10 + Math.round(position.y), transitionDuration: `${movementDuration}ms` }}
       aria-hidden="true"
     >
-      <img src={planting ? plantFrames[frameIndex] ?? farmerIdle : moving ? walkFrames[frameIndex] ?? farmerIdle : farmerIdle} alt="" style={{ transform: facing === "left" ? "scaleX(-1)" : undefined }} />
+      <img src={weeding ? weedFrames[frameIndex] ?? farmerIdle : planting ? plantFrames[frameIndex] ?? farmerIdle : moving ? walkFrames[frameIndex] ?? farmerIdle : farmerIdle} alt="" style={{ transform: facing === "left" ? "scaleX(-1)" : undefined }} />
     </div>
   );
 }

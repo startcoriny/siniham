@@ -25,6 +25,8 @@ body {
 .garden-farmer-hamster { position: absolute; width: 15%; pointer-events: none; transform: translate(-50%, -58%); transition-property: left, top; transition-timing-function: linear; filter: drop-shadow(0 3px 1px rgb(90 57 40 / 0.2)); }
 .garden-farmer-hamster img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 .garden-farmer-hamster--planting { width: 15%; transform: translate(-46%, -58%); }
+.garden-farmer-hamster--weeding { width: 15%; transform: translate(-46%, -58%); }
+.garden-farmer-hamster--weeding img { width: 76%; margin: 12% auto 0; }
 .garden-farmer-hamster--idle img { animation: garden-farmer-idle 1.8s ease-in-out infinite; }
 
 @keyframes garden-farmer-idle {

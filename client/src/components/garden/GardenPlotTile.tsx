@@ -22,7 +22,7 @@ export function gardenSpriteStyle(atlasX: string, atlasY: string, offsetX = "0%"
 
 type PreviewStage = "SEEDED" | "SPROUT" | "GROWING" | "READY";
 
-export default function GardenPlotTile({ plot, selected, onSelect, previewCropId, previewStage }: { plot: GameStatePlot; selected: boolean; onSelect: () => void; previewCropId?: CropId; previewStage?: PreviewStage }) {
+export default function GardenPlotTile({ plot, selected, onSelect, previewCropId, previewStage, previewHasWeed = false }: { plot: GameStatePlot; selected: boolean; onSelect: () => void; previewCropId?: CropId; previewStage?: PreviewStage; previewHasWeed?: boolean }) {
   const crop = GARDEN_CROPS.find((item) => item.id === (previewCropId ?? plot.cropId));
   const occupied = Boolean(previewStage) || plot.status !== "EMPTY";
   const growthRatio = !previewStage && plot.status === "GROWING" && plot.cropId !== null && plot.plantedAt !== null
@@ -38,11 +38,11 @@ export default function GardenPlotTile({ plot, selected, onSelect, previewCropId
   const offsetY = crop ? (stage === "ready" ? crop.readyY : stage === "sprout" ? crop.sproutY : crop.growY) : "0%";
   const weedPosition = (plot.rowIndex * 4 + plot.slotIndex) % 3;
   return (
-    <button type="button" onClick={onSelect} aria-label={`${plot.rowIndex + 1}번 라인 ${plot.slotIndex + 1}번째 칸`} className={`garden-slot ${occupied ? "garden-slot--occupied" : ""} ${selected ? "garden-slot--selected" : ""}`}>
+    <button type="button" onClick={onSelect} data-garden-row={plot.rowIndex} data-garden-slot={plot.slotIndex} aria-label={`${plot.rowIndex + 1}번 라인 ${plot.slotIndex + 1}번째 칸`} className={`garden-slot ${occupied ? "garden-slot--occupied" : ""} ${selected ? "garden-slot--selected" : ""}`}>
       {stage === "seeded" && <span className="garden-planted-seed" />}
       {crop && stage !== "seeded" && (previewStage || plot.status !== "EMPTY") && <span className={`garden-atlas-sprite garden-atlas-sprite--${stage} garden-atlas-sprite--${crop.id.toLowerCase()}`} style={gardenSpriteStyle(crop.atlasX, atlasY, crop.offsetX, offsetY)} />}
       {stage === "ready" && <span className="garden-sparkle">✦</span>}
-      {plot.hasWeed && <><span className={`garden-weed garden-weed--position-${weedPosition}`} /><span className="garden-alert">!</span></>}
+      {(plot.hasWeed || previewHasWeed) && <><span className={`garden-weed garden-weed--position-${weedPosition}`} /><span className="garden-alert">!</span></>}
     </button>
   );
 }

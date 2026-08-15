@@ -39,6 +39,16 @@ gardenRouter.post("/summary/ack", requireAuth, async (req, res) => {
 const plotParamsSchema = z.object({
   plotIndex: z.coerce.number().int().min(0),
 });
+
+// 잡초 뽑기 동작을 전체 밭에서 확인하기 위한 임시 테스트 설정.
+gardenRouter.post("/weeds/test-fill", requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  await prisma.gardenPlot.updateMany({
+    where: { userId },
+    data: { hasWeed: true },
+  });
+  res.status(200).json(await serializeState(userId));
+});
 const cropSchema = z.object({ cropId: z.enum(CROP_IDS as [CropId, ...CropId[]]) });
 
 gardenRouter.post("/seeds/purchase", requireAuth, async (req, res) => {
