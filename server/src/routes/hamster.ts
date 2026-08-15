@@ -1,5 +1,6 @@
 // 햄스터 온보딩, 돌보기 액션, 케이지 가구 배치를 처리한다.
 import { Router } from "express";
+import { WATER_SOURCE_ITEM_IDS } from "@shared/types/cage";
 import { z } from "zod";
 import type { HamsterAction, HamsterBehavior, IdleActivityItemId } from "@shared/types/hamster";
 import { requireAuth } from "../middleware/auth";
@@ -277,7 +278,15 @@ hamsterRouter.post("/cage-items/:itemMasterId/place", requireAuth, async (req, r
     return;
   }
   const slot = pickFreeSlot(placed);
-  await prisma.cageItem.update({ where: { id: item.id }, data: { ...slot, isPlaced: true } });
+  await prisma.$transaction(async (tx) => {
+    if (WATER_SOURCE_ITEM_IDS.includes(item.itemMasterId as (typeof WATER_SOURCE_ITEM_IDS)[number])) {
+      await tx.cageItem.updateMany({
+        where: { userId, itemMasterId: { in: [...WATER_SOURCE_ITEM_IDS] } },
+        data: { isPlaced: false },
+      });
+    }
+    await tx.cageItem.update({ where: { id: item.id }, data: { ...slot, isPlaced: true } });
+  });
   res.status(200).json(await serializeState(userId));
 });
 

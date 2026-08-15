@@ -27,9 +27,10 @@ export function getHamsterAnimationIntervalMs(behavior: HamsterBehavior): number
 export function getHamsterAnimationFrames(
   appearance: HamsterAppearance,
   behavior: HamsterBehavior,
+  animationName?: string,
 ): string[] {
   const folder = HAMSTER_APPEARANCES[appearance].folder;
-  const behaviorFolder = HAMSTER_BEHAVIOR_FILE_NAME[behavior];
+  const behaviorFolder = animationName ?? HAMSTER_BEHAVIOR_FILE_NAME[behavior];
   const prefix = `/src/assets/hamsters/${folder}/${behaviorFolder}-01/frame-`;
   return Object.entries(animationModules)
     .filter(([path]) => path.startsWith(prefix))

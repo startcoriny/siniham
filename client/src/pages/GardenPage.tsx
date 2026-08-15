@@ -1,127 +1,65 @@
-// 기획서 화면 6. 정원
-import { useEffect, useState } from "react";
-import { HARVEST_REWARD } from "@shared/types/garden";
-import GardenPlotTile from "../components/garden/GardenPlotTile";
+// 16개 심기 슬롯, 씨앗 가방, 수확 바구니를 제공하는 정원 화면.
+import { useEffect, useMemo, useState } from "react";
+import { CROP_IDS, CROP_MASTERS } from "@shared/types/garden";
+import type { CropId } from "@shared/types/garden";
+import GardenPlotTile, { GARDEN_CROPS, gardenSpriteStyle } from "../components/garden/GardenPlotTile";
 import GardenActionSheet from "../components/garden/GardenActionSheet";
-import HamsterSprite from "../components/hamster/HamsterSprite";
 import Modal from "../components/common/Modal";
 import PixelButton from "../components/common/PixelButton";
 import { useGameState } from "../context/GameStateContext";
 import { useToast } from "../components/common/Toast";
 
-// 서버가 lazy-tick으로 성장을 계산하므로, 화면에 머무는 동안 주기적으로 다시 불러와 반영한다.
 const REFRESH_INTERVAL_MS = 30_000;
 
-// "3일 전부터" 처럼 자리를 비운 기간을 사람이 읽는 표현으로 바꾼다.
-function formatAwayPeriod(since: string | null): string {
-  if (!since) return "자리를 비운 사이";
-  const elapsedMs = Date.now() - new Date(since).getTime();
-  const hours = Math.floor(elapsedMs / 3_600_000);
-  if (hours < 1) return "잠시 자리를 비운 사이";
-  if (hours < 24) return `${hours}시간 만에 와보니`;
-  return `${Math.floor(hours / 24)}일 만에 와보니`;
-}
-
 export default function GardenPage() {
-  const { gardenPlots, seedCount, gardenSummary, plantSeed, removeWeed, harvestPlot, ackGardenSummary, refresh } =
-    useGameState();
+  const { gardenPlots, seedInventory, produceInventory, gardenSummary, plantSeed, removeWeed, harvestPlot, eatProduce, ackGardenSummary, refresh } = useGameState();
   const { showToast } = useToast();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(gardenPlots[0]?.id ?? null);
+  const [selectedCropId, setSelectedCropId] = useState<CropId>("CARROT");
+  const [basketOpen, setBasketOpen] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const selectedPlot = gardenPlots.find((plot) => plot.id === selectedId) ?? null;
+  const rows = useMemo(() => [0, 1, 2, 3].map((rowIndex) => gardenPlots.filter((plot) => plot.rowIndex === rowIndex)), [gardenPlots]);
 
   useEffect(() => {
-    const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
+    const refreshTimer = window.setInterval(refresh, REFRESH_INTERVAL_MS);
+    const clockTimer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => { window.clearInterval(refreshTimer); window.clearInterval(clockTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function closeOfflineSummary() {
-    try {
-      await ackGardenSummary();
-    } catch {
-      // 확인 처리에 실패해도 화면을 막지 않는다. 다음 조회 때 다시 안내된다.
-    }
+  async function runWork(work: () => Promise<void>, message: string) {
+    try { await work(); showToast(message); }
+    catch (error) { showToast(error instanceof Error ? error.message : "정원 작업에 실패했어요."); }
   }
 
-  const selectedPlot = gardenPlots.find((p) => p.id === selectedId) ?? null;
-
-  async function handlePlant() {
-    if (selectedId === null) return;
-    try {
-      await plantSeed(selectedId);
-      showToast("씨앗을 심었어요.");
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "심기에 실패했어요.");
-    }
-  }
-
-  async function handleRemoveWeed() {
-    if (selectedId === null) return;
-    try {
-      await removeWeed(selectedId);
-      showToast("잡초를 뽑았어요. 씨앗 +1");
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "잡초 제거에 실패했어요.");
-    }
-  }
-
-  async function handleHarvest() {
-    if (selectedId === null) return;
-    try {
-      await harvestPlot(selectedId);
-      showToast(`수확했어요! 재화 +${HARVEST_REWARD}`);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "수확에 실패했어요.");
-    }
-  }
+  const totalProduce = CROP_IDS.reduce((sum, id) => sum + produceInventory[id], 0);
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-brown">정원</h1>
-        <span className="text-sm text-brown/70">씨앗 {seedCount}개</span>
+    <div className="garden-page">
+      <div className="garden-page__title">
+        <h1>정원</h1>
+        <button type="button" className="garden-basket-button" onClick={() => setBasketOpen(true)}>수확 바구니 <strong>{totalProduce}</strong></button>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4">
-        {gardenPlots.map((plot) => (
-          <GardenPlotTile
-            key={plot.id}
-            plot={plot}
-            selected={plot.id === selectedId}
-            onSelect={() => setSelectedId(plot.id)}
-          />
-        ))}
-      </div>
+      <section className="garden-stage" aria-label="재배 라인">
+        <div className="garden-stage__rows">
+          {rows.map((row, rowIndex) => <div className="garden-row" key={rowIndex}><span className="garden-row__number">{rowIndex + 1}</span><div className="garden-row__slots">{row.map((plot) => <GardenPlotTile key={plot.id} plot={plot} selected={plot.id === selectedId} onSelect={() => setSelectedId(plot.id)} previewCropId={GARDEN_CROPS[rowIndex].id} previewStage={(["SEEDED", "SPROUT", "GROWING", "READY"] as const)[plot.slotIndex]} />)}</div></div>)}
+        </div>
+      </section>
 
-      <div className="mb-6 flex justify-center">
-        <HamsterSprite appearance="GOLDEN" behavior="GARDEN" size={96} />
-      </div>
+      <section className="garden-seed-panel" aria-label="씨앗 가방">
+        <div className="garden-seed-list">
+          {GARDEN_CROPS.map((seed) => <button key={seed.id} type="button" onClick={() => setSelectedCropId(seed.id)} className={`garden-seed-card ${selectedCropId === seed.id ? "garden-seed-card--selected" : ""}`}><span className="garden-seed-packet garden-atlas-sprite" style={gardenSpriteStyle(seed.atlasX, "0%")} /><span>{seed.name}</span><small>{seedInventory[seed.id]}</small></button>)}
+        </div>
+        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} onPlant={() => runWork(() => plantSeed(selectedId!, selectedCropId), `${CROP_MASTERS[selectedCropId].name} 씨앗을 심었어요.`)} onRemoveWeed={() => runWork(() => removeWeed(selectedId!), "잡초를 뽑고 재화 1을 얻었어요.")} onHarvest={() => runWork(() => harvestPlot(selectedId!), "수확물이 바구니에 들어갔어요.")} />
+      </section>
 
-      <GardenActionSheet
-        plot={selectedPlot}
-        seedCount={seedCount}
-        onPlant={handlePlant}
-        onRemoveWeed={handleRemoveWeed}
-        onHarvest={handleHarvest}
-      />
-
-      <Modal open={gardenSummary !== null} onClose={closeOfflineSummary} title="정원 소식">
-        <p className="mb-4 text-brown">
-          {formatAwayPeriod(gardenSummary?.since ?? null)} 정원에 변화가 있었어요.
-          {gardenSummary && gardenSummary.grownCount > 0 && (
-            <>
-              <br />- 작물 {gardenSummary.grownCount}개가 다 자랐어요.
-            </>
-          )}
-          {gardenSummary && gardenSummary.weedCount > 0 && (
-            <>
-              <br />- 밭 {gardenSummary.weedCount}곳에 잡초가 생겼어요.
-            </>
-          )}
-        </p>
-        <PixelButton onClick={closeOfflineSummary} className="w-full">
-          확인
-        </PixelButton>
+      <Modal open={basketOpen} onClose={() => setBasketOpen(false)} title="수확 바구니">
+        <div className="garden-produce-list">{GARDEN_CROPS.map((crop) => <div className="garden-produce-row" key={crop.id}><span className="garden-produce-icon garden-atlas-sprite" style={gardenSpriteStyle(crop.atlasX, "100%")} /><span><strong>{crop.name}</strong><small>배고픔 +{CROP_MASTERS[crop.id].hungerEffect}{CROP_MASTERS[crop.id].moodEffect ? ` · 기분 +${CROP_MASTERS[crop.id].moodEffect}` : ""}</small></span><b>{produceInventory[crop.id]}개</b><PixelButton disabled={produceInventory[crop.id] < 1} onClick={() => runWork(() => eatProduce(crop.id), `${crop.name}을 맛있게 먹었어요.`)}>먹기</PixelButton></div>)}</div>
       </Modal>
+
+      <Modal open={gardenSummary !== null} onClose={ackGardenSummary} title="정원 소식"><p className="mb-4 text-brown">자리를 비운 사이 작물 {gardenSummary?.grownCount ?? 0}칸이 자랐고, 잡초 {gardenSummary?.weedCount ?? 0}개가 생겼어요.</p><PixelButton onClick={ackGardenSummary} className="w-full">확인</PixelButton></Modal>
     </div>
   );
 }

@@ -18,6 +18,8 @@ model User {
   passwordHash String
   currency     Int      @default(100)
   seedCount    Int      @default(1)
+  seedInventory Json    @default("{\"CARROT\":1,\"STRAWBERRY\":0,\"TOMATO\":0,\"SUNFLOWER\":0}")
+  produceInventory Json @default("{\"CARROT\":0,\"STRAWBERRY\":0,\"TOMATO\":0,\"SUNFLOWER\":0}")
   lastActiveAt DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -111,11 +113,19 @@ enum PlotStatus {
   READY
 }
 
+enum CropId {
+  CARROT
+  STRAWBERRY
+  TOMATO
+  SUNFLOWER
+}
+
 model GardenPlot {
   id        String     @id @default(cuid())
   userId    String
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   plotIndex Int
+  cropId    CropId?
   status    PlotStatus @default(EMPTY)
   hasWeed   Boolean    @default(false)
   plantedAt DateTime?

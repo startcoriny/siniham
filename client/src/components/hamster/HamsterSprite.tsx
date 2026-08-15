@@ -23,6 +23,7 @@ interface HamsterSpriteProps {
   size?: number;
   facing?: "left" | "right";
   className?: string;
+  animationName?: string;
   // 프레임 간격. 이동 속도가 느린 화면에서는 늘려야 발이 헛도는 느낌이 안 난다.
   frameIntervalMs?: number;
 }
@@ -33,9 +34,10 @@ export default function HamsterSprite({
   size = 96,
   facing = "right",
   className = "",
+  animationName,
   frameIntervalMs,
 }: HamsterSpriteProps) {
-  const frames = getHamsterAnimationFrames(appearance, behavior);
+  const frames = getHamsterAnimationFrames(appearance, behavior, animationName);
   const effectiveFrameIntervalMs = frameIntervalMs ?? getHamsterAnimationIntervalMs(behavior);
   const [frameIndex, setFrameIndex] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -65,7 +67,7 @@ export default function HamsterSprite({
       setFrameIndex((current) => (current + 1) % frames.length);
     }, effectiveFrameIntervalMs);
     return () => window.clearInterval(timer);
-  }, [appearance, behavior, frames.length, effectiveFrameIntervalMs, reduceMotion]);
+  }, [appearance, behavior, animationName, frames.length, effectiveFrameIntervalMs, reduceMotion]);
 
   useEffect(() => {
     setBlinking(false);

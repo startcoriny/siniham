@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent } from "react";
 import type { HamsterAction, HamsterBehavior, IdleActivityItemId } from "@shared/types/hamster";
+import type { ItemId } from "@shared/types/cage";
 import {
     DEFAULT_DISPLAY_SCALE,
     DISPLAY_SCALE_MAX,
@@ -62,6 +63,15 @@ const ITEM_ASSET = {
 // 햄스터 스프라이트 상자의 폭도 같은 기준으로 잡는다. 쳇바퀴 안에 들어갈 때만 작게 그린다.
 const HAMSTER_WIDTH_RATIO = 0.217;
 const HAMSTER_ON_WHEEL_RATIO = 0.143;
+const WATER_SOURCE_ITEM_IDS: ItemId[] = ["WATER_BOTTLE", "WATER_BOWL"];
+const DRINK_ANIMATION_NAME: Partial<Record<ItemId, string>> = {
+    WATER_BOTTLE: "drink-wall",
+    WATER_BOWL: "drink-bowl",
+};
+const DRINK_OFFSET_Y: Partial<Record<ItemId, number>> = {
+    WATER_BOTTLE: 0.14,
+    WATER_BOWL: -0.06,
+};
 // 스테이지를 아직 못 쟀을 때 쓸 기본값. PC 기준 폭이라 첫 페인트가 크게 어긋나지 않는다.
 const FALLBACK_STAGE_WIDTH = 736;
 const FALLBACK_STAGE_HEIGHT = FALLBACK_STAGE_WIDTH * 0.7;
@@ -137,18 +147,10 @@ const IDLE_ACTIVITIES: Array<{
         minDurationMs: 3000,
         maxDurationMs: 5000,
         chance: 0.025,
-        offsetY: 0.12,
+        offsetY: 0.14,
     },
-    {
-        itemId: "HANDHELD_WATER_BOTTLE",
-        behavior: "DRINK",
-        minDurationMs: 3000,
-        maxDurationMs: 5000,
-        chance: 0.025,
-        offsetY: 0.12,
-    },
-    { itemId: "WATER_BOWL", behavior: "DRINK", minDurationMs: 3000, maxDurationMs: 5000, chance: 0.025, offsetY: 0.12 },
-    { itemId: "WHEEL", behavior: "WALK", minDurationMs: 8000, maxDurationMs: 15000, chance: 0.05, offsetY: 0.04 },
+    { itemId: "WATER_BOWL", behavior: "DRINK", minDurationMs: 3000, maxDurationMs: 5000, chance: 0.025, offsetY: -0.06 },
+    { itemId: "WHEEL", behavior: "WALK", minDurationMs: 8000, maxDurationMs: 15000, chance: 0.05, offsetY: 0.01 },
     // 집 안으로 사라지는 대신 집 앞에 자리를 잡고 잔다. 집은 보통 위쪽에 놓여 있어 아래로 넉넉히 내린다.
     {
         itemId: "HOUSE",
@@ -257,6 +259,7 @@ export default function CagePage() {
     const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
     const [previewPosition, setPreviewPosition] = useState<{ x: number; y: number } | null>(null);
     const [activeWheelId, setActiveWheelId] = useState<string | null>(null);
+    const [activeDrinkItemId, setActiveDrinkItemId] = useState<string | null>(null);
     const [wheelFrameIndex, setWheelFrameIndex] = useState(0);
     // 쓰다듬기 연출
     const [petEffects, setPetEffects] = useState<Array<{ id: number; x: number; y: number }>>([]);
@@ -372,6 +375,7 @@ export default function CagePage() {
                         };
                         walkTo(spot, () => {
                             if (activity.itemId === "WHEEL") setActiveWheelId(item.id);
+                            if (activity.behavior === "DRINK") setActiveDrinkItemId(item.id);
                             setBehavior(activity.behavior);
                             const activityDurationMs = randomDurationMs({
                                 minMs: activity.minDurationMs,
@@ -379,6 +383,7 @@ export default function CagePage() {
                             });
                             later(() => {
                                 setActiveWheelId(null);
+                                setActiveDrinkItemId(null);
                                 setBehavior("IDLE");
                                 reportActivity(activity.itemId);
                                 scheduleWalk();
@@ -411,6 +416,7 @@ export default function CagePage() {
         return () => {
             timers.forEach((timer) => window.clearTimeout(timer));
             setActiveWheelId(null);
+            setActiveDrinkItemId(null);
         };
         // cageItems와 performIdleActivity는 매번 새 참조라 의존성에 넣으면 연출이 끊긴다.
         // 배치 변경은 cageLayoutKey로, 최신 목록은 cageItemsRef로 받는다.
@@ -449,7 +455,7 @@ export default function CagePage() {
             action === "FEED"
                 ? item.itemId === "FOOD_BOWL"
                 : action === "WATER"
-                  ? ["WATER_BOTTLE", "HANDHELD_WATER_BOTTLE", "WATER_BOWL"].includes(item.itemId)
+                  ? WATER_SOURCE_ITEM_IDS.includes(item.itemId)
                   : action === "WASH"
                     ? item.itemId === "SAND_BATH"
                     : false,
@@ -469,7 +475,7 @@ export default function CagePage() {
                         ? clamp(targetItem.posY + FEED_UPPER_OFFSET_Y, 0.35, 0.82)
                         : action === "WASH"
                           ? clamp(targetItem.posY - 0.19, 0.35, 0.82)
-                          : Math.min(0.82, targetItem.posY + 0.12),
+                          : Math.min(0.82, targetItem.posY + (DRINK_OFFSET_Y[targetItem.itemId] ?? 0.12)),
             };
             const duration = walkDurationMs(hamsterPosition, target, MIN_ACTION_WALK_MS);
             setBehavior("WALK");
@@ -478,6 +484,7 @@ export default function CagePage() {
             setHamsterPosition(target);
             await new Promise((resolve) => window.setTimeout(resolve, duration));
         }
+        if (action === "WATER" && targetItem) setActiveDrinkItemId(targetItem.id);
         setBehavior(nextBehavior);
         const visualDelay = new Promise((resolve) =>
             window.setTimeout(resolve, randomDurationMs(ACTION_DURATION_RANGE[action])),
@@ -491,6 +498,7 @@ export default function CagePage() {
             await visualDelay;
             // 가운데로 되돌리지 않는다. 있던 자리에 그대로 두면 이어지는 자율 행동이 자연스럽다.
             setBehavior("IDLE");
+            setActiveDrinkItemId(null);
             setBusy(false);
         }
     }
@@ -539,7 +547,7 @@ export default function CagePage() {
         const from = hamsterPositionRef.current;
         const target = {
             x: clamp(wheel.posX, 0.18, 0.82),
-            y: clamp(wheel.posY + 0.04, 0.35, 0.8),
+            y: clamp(wheel.posY + 0.01, 0.35, 0.8),
         };
         const duration = walkDurationMs(from, target, MIN_ACTION_WALK_MS);
         setFacing(target.x < from.x ? "left" : "right");
@@ -658,18 +666,19 @@ export default function CagePage() {
 
     const stats = hamster.stats;
     const activeWheel = cageItems.find((item) => item.id === activeWheelId);
+    const activeDrinkItem = cageItems.find((item) => item.id === activeDrinkItemId);
     const ownedWheel = cageItems.find((item) => item.itemId === "WHEEL");
     const ownedHouse = cageItems.find((item) => item.itemId === "HOUSE");
     const ownedSandBath = cageItems.find((item) => item.itemId === "SAND_BATH");
     const hasFoodBowl = cageItems.some((item) => item.itemId === "FOOD_BOWL");
     const hasWaterSource = cageItems.some((item) =>
-        ["WATER_BOTTLE", "HANDHELD_WATER_BOTTLE", "WATER_BOWL"].includes(item.itemId),
+        WATER_SOURCE_ITEM_IDS.includes(item.itemId),
     );
     const availableActions = ACTIONS.filter(
         (action) => action.id === "PET" || (action.id === "FEED" ? hasFoodBowl : hasWaterSource),
     );
     const storedItemIds = ownedItemIds.filter(
-        (itemId) => !cageItems.some((cageItem) => cageItem.itemId === itemId),
+        (itemId) => itemId !== "HANDHELD_WATER_BOTTLE" && !cageItems.some((cageItem) => cageItem.itemId === itemId),
     );
     const optionalActionCount = [ownedWheel, ownedHouse, ownedSandBath].filter(Boolean).length;
     const actionGridClass = isSleeping
@@ -684,7 +693,9 @@ export default function CagePage() {
     const selectedItem = cageItems.find((item) => item.id === selectedItemId);
     const renderedHamsterScale = hamsterSelected && scalePreview !== null ? scalePreview : hamster.displayScale;
     const hamsterSize = evenPixel(
-        (activeWheelId ? HAMSTER_ON_WHEEL_RATIO : HAMSTER_WIDTH_RATIO) * stageWidth * renderedHamsterScale,
+        (activeWheelId
+            ? HAMSTER_ON_WHEEL_RATIO
+            : HAMSTER_WIDTH_RATIO) * stageWidth * renderedHamsterScale,
     );
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-3 md:p-6">
@@ -715,7 +726,7 @@ export default function CagePage() {
                     className={`relative aspect-[10/7] overflow-hidden rounded-2xl border-4 border-brown/20 ${editing ? "cursor-crosshair" : ""}`}
                     style={{ backgroundImage: `url(${cageBackground})`, backgroundSize: "100% 100%" }}
                 >
-                    {cageItems.map((item) => {
+                    {cageItems.filter((item) => item.itemId !== "HANDHELD_WATER_BOTTLE").map((item) => {
                         const itemAsset =
                             item.itemId in ITEM_ASSET ? ITEM_ASSET[item.itemId as keyof typeof ITEM_ASSET] : null;
                         const assetSrc =
@@ -816,9 +827,10 @@ export default function CagePage() {
                                 behavior={behavior}
                                 facing={facing}
                                 size={hamsterSize}
-                                className={`block ${activeWheelId ? "animate-bounce" : ""}`}
+                                className={`block ${activeWheelId ? "animate-wheel-run" : ""}`}
+                                animationName={activeDrinkItem ? DRINK_ANIMATION_NAME[activeDrinkItem.itemId] : undefined}
                                 // 쳇바퀴는 빠르게 달리는 연출이라 원래 속도로, 케이지 산책은 느긋하게 재생한다.
-                                frameIntervalMs={behavior === "WALK" ? (activeWheelId ? 160 : 360) : undefined}
+                                frameIntervalMs={behavior === "WALK" ? (activeWheelId ? 180 : 360) : undefined}
                             />
                         </div>
                     </button>

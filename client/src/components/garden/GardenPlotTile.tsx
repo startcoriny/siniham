@@ -1,29 +1,43 @@
-// 정원 밭 한 칸. 상태별 라벨 표시, 선택 시 테두리 강조
-import type { GardenPlot, PlotStatus } from "@shared/types/garden";
+// 정원의 개별 심기 슬롯. 작물 상태와 잡초를 픽셀 아틀라스로 표시한다.
+import type { CSSProperties } from "react";
+import type { GameStatePlot } from "@shared/types/gameState";
+import type { CropId } from "@shared/types/garden";
+import { CROP_MASTERS } from "@shared/types/garden";
 
-const STATUS_LABEL: Record<PlotStatus, string> = {
-  EMPTY: "빈 밭",
-  GROWING: "성장 중",
-  READY: "수확 가능",
-};
+// 심은 뒤 이 비율만큼 시간이 지나기 전까지는 새싹 단계로 보여준다. 정확한 수치는 정해진 바 없어 절반으로 임시 결정.
+const SPROUT_STAGE_RATIO = 0.5;
 
-interface GardenPlotTileProps {
-  plot: GardenPlot;
-  selected: boolean;
-  onSelect: () => void;
+export const GARDEN_CROPS: Array<{ id: CropId; name: string; atlasX: string; offsetX: string; sproutY: string; growY: string; readyY: string }> = [
+  // Y 보정은 그림 중심이 아니라 스프라이트의 흙 하단이 슬롯 중앙에 오도록 맞춘 값이다.
+  { id: "CARROT", name: "당근", atlasX: "0%", offsetX: "-7%", sproutY: "-8%", growY: "-5%", readyY: "-9%" },
+  { id: "STRAWBERRY", name: "딸기", atlasX: "33.333%", offsetX: "0%", sproutY: "-8%", growY: "-8%", readyY: "-9%" },
+  { id: "TOMATO", name: "토마토", atlasX: "66.667%", offsetX: "10%", sproutY: "-8%", growY: "-8%", readyY: "-9%" },
+  { id: "SUNFLOWER", name: "해바라기", atlasX: "100%", offsetX: "15%", sproutY: "-8%", growY: "-8%", readyY: "-9%" },
+];
+
+export function gardenSpriteStyle(atlasX: string, atlasY: string, offsetX = "0%", offsetY = "0%"): CSSProperties {
+  return { "--garden-sprite-x": atlasX, "--garden-sprite-y": atlasY, "--garden-offset-x": offsetX, "--garden-offset-y": offsetY } as CSSProperties;
 }
 
-export default function GardenPlotTile({ plot, selected, onSelect }: GardenPlotTileProps) {
+type PreviewStage = "SEEDED" | "SPROUT" | "GROWING" | "READY";
+
+export default function GardenPlotTile({ plot, selected, onSelect, previewCropId, previewStage }: { plot: GameStatePlot; selected: boolean; onSelect: () => void; previewCropId?: CropId; previewStage?: PreviewStage }) {
+  const crop = GARDEN_CROPS.find((item) => item.id === (previewCropId ?? plot.cropId));
+  const occupied = Boolean(previewStage) || plot.status !== "EMPTY";
+  const isSprout = !previewStage &&
+    plot.status === "GROWING" &&
+    plot.cropId !== null &&
+    plot.plantedAt !== null &&
+    Date.now() - plot.plantedAt < CROP_MASTERS[plot.cropId].growDurationMs * SPROUT_STAGE_RATIO;
+  const stage = previewStage?.toLowerCase() ?? (plot.status === "READY" ? "ready" : isSprout ? "sprout" : "growing");
+  const atlasY = stage === "ready" ? "100%" : stage === "sprout" ? "33.333%" : "66.667%";
+  const offsetY = crop ? (stage === "ready" ? crop.readyY : stage === "sprout" ? crop.sproutY : crop.growY) : "0%";
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`flex h-28 flex-col items-center justify-center gap-1 rounded-2xl border-2 bg-card transition ${
-        selected ? "border-brown" : "border-transparent"
-      }`}
-    >
-      <span className="text-sm text-brown/70">{STATUS_LABEL[plot.status]}</span>
-      {plot.hasWeed && <span className="text-xs text-danger">잡초 있음</span>}
+    <button type="button" onClick={onSelect} aria-label={`${plot.rowIndex + 1}번 라인 ${plot.slotIndex + 1}번째 칸`} className={`garden-slot ${occupied ? "garden-slot--occupied" : ""} ${selected ? "garden-slot--selected" : ""}`}>
+      {stage === "seeded" && <span className="garden-planted-seed" />}
+      {crop && stage !== "seeded" && (previewStage || plot.status !== "EMPTY") && <span className={`garden-atlas-sprite garden-atlas-sprite--${stage} garden-atlas-sprite--${crop.id.toLowerCase()}`} style={gardenSpriteStyle(crop.atlasX, atlasY, crop.offsetX, offsetY)} />}
+      {stage === "ready" && <span className="garden-sparkle">✦</span>}
+      {!previewStage && plot.hasWeed && <><span className="garden-weed" /><span className="garden-alert">!</span></>}
     </button>
   );
 }

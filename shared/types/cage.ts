@@ -87,6 +87,9 @@ export const ITEM_MASTERS: Record<ItemId, ItemMasterInfo> = {
 
 export const STARTER_ITEM_IDS: ItemId[] = ["FOOD_BOWL", "WATER_BOTTLE", "HOUSE"];
 
+export const WATER_SOURCE_ITEM_IDS = ["WATER_BOTTLE", "HANDHELD_WATER_BOTTLE", "WATER_BOWL"] as const;
+export type WaterSourceItemId = (typeof WATER_SOURCE_ITEM_IDS)[number];
+
 export const DISPLAY_SCALE_MIN = 0.7;
 export const DISPLAY_SCALE_MAX = 1.4;
 export const DISPLAY_SCALE_STEP = 0.05;

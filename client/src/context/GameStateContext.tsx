@@ -6,6 +6,7 @@ import type { MissionId } from "@shared/types/mission";
 import type { HamsterBehavior } from "@shared/types/hamster";
 import type { CreateHamsterRequest, HamsterAction, IdleActivityItemId } from "@shared/types/hamster";
 import type { GameStateResponse } from "@shared/types/gameState";
+import type { CropId } from "@shared/types/garden";
 import * as gameApi from "../lib/gameApi";
 import { useAuth } from "./AuthContext";
 
@@ -14,9 +15,11 @@ interface GameStateContextValue {
   isLoading: boolean;
   refresh: () => Promise<void>;
   purchaseItem: (itemId: ItemId) => Promise<void>;
-  plantSeed: (plotId: number) => Promise<void>;
+  purchaseSeed: (cropId: CropId, quantity?: number) => Promise<void>;
+  plantSeed: (plotId: number, cropId: CropId) => Promise<void>;
   removeWeed: (plotId: number) => Promise<void>;
   harvestPlot: (plotId: number) => Promise<void>;
+  eatProduce: (cropId: CropId) => Promise<void>;
   ackGardenSummary: () => Promise<void>;
   claimMissionReward: (missionId: MissionId) => Promise<void>;
   discoverBehavior: (behaviorId: HamsterBehavior) => Promise<void>;
@@ -60,8 +63,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setState(await gameApi.purchaseItem(itemId));
   }
 
-  async function plantSeed(plotId: number) {
-    setState(await gameApi.plantSeed(plotId));
+  async function purchaseSeed(cropId: CropId, quantity = 1) {
+    setState(await gameApi.purchaseSeed(cropId, quantity));
+  }
+
+  async function plantSeed(plotId: number, cropId: CropId) {
+    setState(await gameApi.plantSeed(plotId, cropId));
   }
 
   async function removeWeed(plotId: number) {
@@ -70,6 +77,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   async function harvestPlot(plotId: number) {
     setState(await gameApi.harvestPlot(plotId));
+  }
+
+  async function eatProduce(cropId: CropId) {
+    setState(await gameApi.eatProduce(cropId));
   }
 
   async function ackGardenSummary() {
@@ -125,9 +136,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         isLoading,
         refresh,
         purchaseItem,
+        purchaseSeed,
         plantSeed,
         removeWeed,
         harvestPlot,
+        eatProduce,
         ackGardenSummary,
         claimMissionReward,
         discoverBehavior,
@@ -168,9 +181,11 @@ export function useGameState() {
   return {
     ...ctx.state,
     purchaseItem: ctx.purchaseItem,
+    purchaseSeed: ctx.purchaseSeed,
     plantSeed: ctx.plantSeed,
     removeWeed: ctx.removeWeed,
     harvestPlot: ctx.harvestPlot,
+    eatProduce: ctx.eatProduce,
     ackGardenSummary: ctx.ackGardenSummary,
     claimMissionReward: ctx.claimMissionReward,
     discoverBehavior: ctx.discoverBehavior,

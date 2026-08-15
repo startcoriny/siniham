@@ -1,6 +1,7 @@
 // 회원가입 시 초기 데이터 생성 + 상태 조회(부트스트랩) + 정원 성장 lazy-tick
 import { STARTER_ITEM_IDS } from "@shared/types/cage";
-import { GARDEN_PLOT_COUNT } from "@shared/types/garden";
+import { CROP_MASTERS, GARDEN_PLOT_COUNT } from "@shared/types/garden";
+import type { CropId } from "@shared/types/garden";
 import { MISSIONS } from "@shared/types/mission";
 import type { MissionId } from "@shared/types/mission";
 import { prisma } from "./prisma";
@@ -48,9 +49,6 @@ export function pickFreeSlot(placed: Array<{ posX: number; posY: number }>) {
   }
   return PURCHASE_SLOTS[PURCHASE_SLOTS.length - 1];
 }
-
-// product-plan.md에 정원 작물 성장 시간이 명시돼 있지 않아 임시로 정함. 확정되면 교체.
-export const GROW_DURATION_MS = 10 * 60 * 1000;
 
 export function todayKey(): string {
   return koreaDateKey();
@@ -122,7 +120,7 @@ export async function tickGardenGrowth(userId: string): Promise<{ grown: number;
   const weedPlotIds: string[] = [];
 
   for (const plot of growingPlots) {
-    if (plot.plantedAt && now - plot.plantedAt.getTime() >= GROW_DURATION_MS) {
+    if (plot.plantedAt && plot.cropId && now - plot.plantedAt.getTime() >= CROP_MASTERS[plot.cropId].growDurationMs * (plot.hasWeed ? 1.2 : 1)) {
       // 다 자란 밭에는 잡초를 새로 만들지 않는다. 수확만 하면 되는 상태로 둔다.
       readyPlotIds.push(plot.id);
       continue;
@@ -194,6 +192,8 @@ export async function serializeState(userId: string) {
   return {
     currency: user.currency,
     seedCount: user.seedCount,
+    seedInventory: user.seedInventory as Record<CropId, number>,
+    produceInventory: user.produceInventory as Record<CropId, number>,
     // 미션 탭의 "자정까지 남은 시간"이 서버의 일일 리셋 기준과 어긋나지 않도록 함께 내려준다.
     missionResetInMs: msUntilKoreaMidnight(),
     gardenSummary: hasGardenSummary
@@ -206,6 +206,9 @@ export async function serializeState(userId: string) {
     ownedItemIds: cageItems.map((item) => item.itemMasterId),
     gardenPlots: gardenPlots.map((plot) => ({
       id: plot.plotIndex,
+      rowIndex: Math.floor(plot.plotIndex / 4),
+      slotIndex: plot.plotIndex % 4,
+      cropId: plot.cropId,
       status: plot.status,
       hasWeed: plot.hasWeed,
       plantedAt: plot.plantedAt ? plot.plantedAt.getTime() : null,
