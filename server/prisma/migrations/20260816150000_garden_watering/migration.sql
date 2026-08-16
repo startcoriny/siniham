@@ -1,0 +1,4 @@
+ALTER TABLE "GardenPlot"
+ADD COLUMN "lastWateredAt" TIMESTAMP(3),
+ADD COLUMN "lastWateredEffectAt" TIMESTAMP(3),
+ADD COLUMN "waterBoostCount" INTEGER NOT NULL DEFAULT 0;

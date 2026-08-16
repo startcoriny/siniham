@@ -10,6 +10,10 @@ import {
   koreaDateKey,
   msUntilKoreaMidnight,
   shouldGrowWeed,
+  weedCheckCount,
+  WEED_INTERVAL_MS,
+  EMPTY_PLOT_WEED_CHANCE,
+  PLANTED_PLOT_WEED_CHANCE,
   MAX_OFFLINE_MS,
   OFFLINE_SUMMARY_THRESHOLD_MS,
 } from "./balance";
@@ -84,9 +88,16 @@ export async function initializeStarterData(userId: string) {
     skipDuplicates: true,
   });
 
+  const gardenStartedAt = new Date();
   await prisma.gardenPlot.createMany({
-    data: Array.from({ length: GARDEN_PLOT_COUNT }, (_, plotIndex) => ({ userId, plotIndex })),
+    data: Array.from({ length: GARDEN_PLOT_COUNT }, (_, plotIndex) => ({ userId, plotIndex, weedFrom: gardenStartedAt })),
     skipDuplicates: true,
+  });
+
+  // 기존 빈 밭도 전체 필드 잡초 정책에 참여하도록 최초 기준 시각을 설정한다.
+  await prisma.gardenPlot.updateMany({
+    where: { userId, weedFrom: null },
+    data: { weedFrom: gardenStartedAt },
   });
 }
 
@@ -112,21 +123,30 @@ export async function ensureTodayMissions(userId: string) {
 // 반환값은 이번 tick에서 실제로 바뀐 밭 수라 "정원 소식" 요약의 원본이 된다.
 export async function tickGardenGrowth(userId: string): Promise<{ grown: number; weeded: number }> {
   const now = Date.now();
-  const growingPlots = await prisma.gardenPlot.findMany({
-    where: { userId, status: "GROWING" },
-  });
+  const plots = await prisma.gardenPlot.findMany({ where: { userId } });
 
   const readyPlotIds: string[] = [];
   const weedPlotIds: string[] = [];
 
-  for (const plot of growingPlots) {
+  const weedCheckUpdates: Array<{ id: string; weedFrom: Date }> = [];
+
+  for (const plot of plots) {
     if (plot.plantedAt && plot.cropId && now - plot.plantedAt.getTime() >= CROP_MASTERS[plot.cropId].growDurationMs * (plot.hasWeed ? 1.2 : 1)) {
       // 다 자란 밭에는 잡초를 새로 만들지 않는다. 수확만 하면 되는 상태로 둔다.
       readyPlotIds.push(plot.id);
-      continue;
     }
-    if (!plot.hasWeed && shouldGrowWeed(plot.weedFrom, now)) {
-      weedPlotIds.push(plot.id);
+    if (!plot.hasWeed) {
+      const checkCount = weedCheckCount(plot.weedFrom, now);
+      if (checkCount > 0) {
+        const chance = plot.status === "EMPTY" ? EMPTY_PLOT_WEED_CHANCE : PLANTED_PLOT_WEED_CHANCE;
+        if (shouldGrowWeed(checkCount, chance)) weedPlotIds.push(plot.id);
+        else if (plot.weedFrom) {
+          weedCheckUpdates.push({
+            id: plot.id,
+            weedFrom: new Date(plot.weedFrom.getTime() + checkCount * WEED_INTERVAL_MS),
+          });
+        }
+      }
     }
   }
 
@@ -141,6 +161,11 @@ export async function tickGardenGrowth(userId: string): Promise<{ grown: number;
       where: { id: { in: weedPlotIds } },
       data: { hasWeed: true },
     });
+  }
+  if (weedCheckUpdates.length > 0) {
+    await prisma.$transaction(
+      weedCheckUpdates.map(({ id, weedFrom }) => prisma.gardenPlot.update({ where: { id }, data: { weedFrom } })),
+    );
   }
 
   return { grown: readyPlotIds.length, weeded: weedPlotIds.length };
@@ -212,6 +237,9 @@ export async function serializeState(userId: string) {
       status: plot.status,
       hasWeed: plot.hasWeed,
       plantedAt: plot.plantedAt ? plot.plantedAt.getTime() : null,
+      lastWateredAt: plot.lastWateredAt ? plot.lastWateredAt.getTime() : null,
+      lastWateredEffectAt: plot.lastWateredEffectAt ? plot.lastWateredEffectAt.getTime() : null,
+      waterBoostCount: plot.waterBoostCount,
     })),
     missionProgress: Object.fromEntries(
       missions.map((m) => [m.missionType, { progress: m.progress, claimed: m.completedAt !== null }]),

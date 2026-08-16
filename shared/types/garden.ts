@@ -13,10 +13,10 @@ export interface CropMasterInfo {
 }
 
 export const CROP_MASTERS: Record<CropId, CropMasterInfo> = {
-  CARROT: { id: "CARROT", name: "당근", seedCost: 4, growDurationMs: 30 * 60_000, yield: 2, hungerEffect: 10, moodEffect: 0 },
-  STRAWBERRY: { id: "STRAWBERRY", name: "딸기", seedCost: 10, growDurationMs: 2 * 60 * 60_000, yield: 3, hungerEffect: 8, moodEffect: 2 },
-  TOMATO: { id: "TOMATO", name: "토마토", seedCost: 18, growDurationMs: 4 * 60 * 60_000, yield: 4, hungerEffect: 12, moodEffect: 0 },
-  SUNFLOWER: { id: "SUNFLOWER", name: "해바라기", seedCost: 28, growDurationMs: 8 * 60 * 60_000, yield: 5, hungerEffect: 6, moodEffect: 4 },
+  CARROT: { id: "CARROT", name: "당근", seedCost: 4, growDurationMs: 24 * 60 * 60_000, yield: 2, hungerEffect: 10, moodEffect: 0 },
+  STRAWBERRY: { id: "STRAWBERRY", name: "딸기", seedCost: 10, growDurationMs: 30 * 60 * 60_000, yield: 3, hungerEffect: 8, moodEffect: 2 },
+  TOMATO: { id: "TOMATO", name: "토마토", seedCost: 18, growDurationMs: 36 * 60 * 60_000, yield: 4, hungerEffect: 12, moodEffect: 0 },
+  SUNFLOWER: { id: "SUNFLOWER", name: "해바라기", seedCost: 28, growDurationMs: 48 * 60 * 60_000, yield: 5, hungerEffect: 6, moodEffect: 4 },
 };
 
 export const CROP_IDS = Object.keys(CROP_MASTERS) as CropId[];
@@ -34,4 +34,7 @@ export interface GardenPlot {
   status: PlotStatus;
   hasWeed: boolean;
   plantedAt: number | null;
+  lastWateredAt: number | null;
+  lastWateredEffectAt: number | null;
+  waterBoostCount: number;
 }

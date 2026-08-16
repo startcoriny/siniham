@@ -129,6 +129,9 @@ model GardenPlot {
   status    PlotStatus @default(EMPTY)
   hasWeed   Boolean    @default(false)
   plantedAt DateTime?
+  lastWateredAt       DateTime?
+  lastWateredEffectAt DateTime?
+  waterBoostCount     Int       @default(0)
   // 다음 잡초가 자랄 시점을 재는 기준. 심을 때와 잡초를 뽑을 때 갱신한다.
   weedFrom  DateTime?
 

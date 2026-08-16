@@ -27,6 +27,8 @@ body {
 .garden-farmer-hamster--planting { width: 15%; transform: translate(-46%, -58%); }
 .garden-farmer-hamster--weeding { width: 15%; transform: translate(-46%, -58%); }
 .garden-farmer-hamster--weeding img { width: 76%; margin: 12% auto 0; }
+.garden-farmer-hamster--watering { width: 15%; transform: translate(-46%, -70%); }
+.garden-farmer-hamster--watering img { width: 100%; margin: 0; }
 .garden-farmer-hamster--idle img { animation: garden-farmer-idle 1.8s ease-in-out infinite; }
 
 @keyframes garden-farmer-idle {

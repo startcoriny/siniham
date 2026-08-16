@@ -6,6 +6,7 @@ import type { CropId } from "@shared/types/garden";
 import { requireAuth } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
 import { ensureTodayMissions, serializeState, tickGardenGrowth, todayKey } from "../lib/gameState";
+import { MAX_WATER_BOOST_COUNT, WATER_EFFECT_COOLDOWN_MS, WATER_GROWTH_BOOST_RATIO } from "../lib/balance";
 
 async function incrementGardenMission(userId: string) {
   await ensureTodayMissions(userId);
@@ -40,15 +41,6 @@ const plotParamsSchema = z.object({
   plotIndex: z.coerce.number().int().min(0),
 });
 
-// 잡초 뽑기 동작을 전체 밭에서 확인하기 위한 임시 테스트 설정.
-gardenRouter.post("/weeds/test-fill", requireAuth, async (req, res) => {
-  const userId = req.userId!;
-  await prisma.gardenPlot.updateMany({
-    where: { userId },
-    data: { hasWeed: true },
-  });
-  res.status(200).json(await serializeState(userId));
-});
 const cropSchema = z.object({ cropId: z.enum(CROP_IDS as [CropId, ...CropId[]]) });
 
 gardenRouter.post("/seeds/purchase", requireAuth, async (req, res) => {
@@ -119,12 +111,42 @@ gardenRouter.post("/:plotIndex/plant", requireAuth, async (req, res) => {
     prisma.user.update({ where: { id: userId }, data: { seedInventory: inventory, ...(cropId === "CARROT" ? { seedCount: inventory.CARROT } : {}) } }),
     prisma.gardenPlot.update({
       where: { id: plot.id },
-      data: { cropId, status: "GROWING", plantedAt: new Date(), hasWeed: false, weedFrom: new Date() },
+      data: { cropId, status: "GROWING", plantedAt: new Date(), hasWeed: false, weedFrom: new Date(), lastWateredAt: null, lastWateredEffectAt: null, waterBoostCount: 0 },
     }),
   ]);
   await incrementGardenMission(userId);
 
   res.status(200).json(await serializeState(userId));
+});
+
+gardenRouter.post("/:plotIndex/water", requireAuth, async (req, res) => {
+  const parsed = plotParamsSchema.safeParse(req.params);
+  if (!parsed.success) { res.status(400).json({ error: "밭 번호가 올바르지 않아요." }); return; }
+  const userId = req.userId!;
+  const plot = await getPlotOr404(userId, parsed.data.plotIndex);
+  if (!plot || plot.status !== "GROWING" || !plot.cropId || !plot.plantedAt) {
+    res.status(400).json({ error: "자라고 있는 작물에만 물을 줄 수 있어요." });
+    return;
+  }
+
+  const now = new Date();
+  const effectReady = plot.waterBoostCount < MAX_WATER_BOOST_COUNT
+    && (!plot.lastWateredEffectAt || now.getTime() - plot.lastWateredEffectAt.getTime() >= WATER_EFFECT_COOLDOWN_MS);
+  const boostMs = CROP_MASTERS[plot.cropId].growDurationMs * WATER_GROWTH_BOOST_RATIO;
+
+  await prisma.gardenPlot.update({
+    where: { id: plot.id },
+    data: {
+      lastWateredAt: now,
+      ...(effectReady ? {
+        lastWateredEffectAt: now,
+        waterBoostCount: { increment: 1 },
+        plantedAt: new Date(plot.plantedAt.getTime() - boostMs),
+      } : {}),
+    },
+  });
+
+  res.status(200).json({ ...(await serializeState(userId)), waterEffectApplied: effectReady });
 });
 
 gardenRouter.delete("/:plotIndex", requireAuth, async (req, res) => {
@@ -141,7 +163,7 @@ gardenRouter.delete("/:plotIndex", requireAuth, async (req, res) => {
   }
   await prisma.gardenPlot.update({
     where: { id: plot.id },
-    data: { cropId: null, status: "EMPTY", hasWeed: false, plantedAt: null, weedFrom: null },
+    data: { cropId: null, status: "EMPTY", hasWeed: false, plantedAt: null, weedFrom: new Date(), lastWateredAt: null, lastWateredEffectAt: null, waterBoostCount: 0 },
   });
   res.status(200).json(await serializeState(userId));
 });
@@ -195,7 +217,7 @@ gardenRouter.post("/:plotIndex/harvest", requireAuth, async (req, res) => {
     prisma.user.update({ where: { id: userId }, data: { produceInventory: inventory } }),
     prisma.gardenPlot.update({
       where: { id: plot.id },
-      data: { cropId: null, status: "EMPTY", hasWeed: false, plantedAt: null, weedFrom: null },
+      data: { cropId: null, status: "EMPTY", hasWeed: false, plantedAt: null, weedFrom: new Date(), lastWateredAt: null, lastWateredEffectAt: null, waterBoostCount: 0 },
     }),
   ]);
 

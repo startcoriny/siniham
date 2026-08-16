@@ -16,6 +16,11 @@ const weedModules = import.meta.glob("/src/assets/garden/farmer-weed-01/frame-*.
   import: "default",
 }) as Record<string, string>;
 
+const waterModules = import.meta.glob("/src/assets/garden/farmer-water-01/frame-*.png", {
+  eager: true,
+  import: "default",
+}) as Record<string, string>;
+
 const COLUMN_X = [14, 38, 62, 86];
 const ROW_WORK_Y = [24, 45, 66, 86];
 // 위치 조정용 임시 고정 좌표: 3라인 1번째 칸.
@@ -51,6 +56,13 @@ const PLANT_ACTION_POSITIONS: PlantActionPosition[][] = [
     { seedX: 86, left: { x: 77, y: 78 }, right: { x: 88, y: 78 } },
   ],
 ];
+
+// 물주기 전용 위치 보정. right는 현재 위치를 유지하고 left만 별도로 조정할 수 있다.
+// x: 양수면 오른쪽, 음수면 왼쪽 / y: 양수면 아래, 음수면 위
+const WATER_ACTION_OFFSETS: Record<"left" | "right", PlantSidePosition> = {
+  left: { x: -2, y: 0 },
+  right: { x: 0, y: 0 },
+};
 const WANDER_POINTS = [
   { x: 13, y: 31 }, { x: 37, y: 31 }, { x: 63, y: 31 }, { x: 87, y: 31 },
   { x: 13, y: 52 }, { x: 37, y: 52 }, { x: 63, y: 52 }, { x: 87, y: 52 },
@@ -64,7 +76,7 @@ type Position = { x: number; y: number };
 
 export type GardenFarmerCommand = {
   id: number;
-  type: "plant" | "weed";
+  type: "plant" | "weed" | "water";
   target: { rowIndex: number; slotIndex: number };
   side?: "left" | "right";
   perform: () => Promise<boolean>;
@@ -74,11 +86,13 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
   const walkFrames = useMemo(() => Object.entries(walkModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
   const plantFrames = useMemo(() => Object.entries(plantModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
   const weedFrames = useMemo(() => Object.entries(weedModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
+  const waterFrames = useMemo(() => Object.entries(waterModules).sort(([a], [b]) => a.localeCompare(b)).map(([, src]) => src), []);
   const [position, setPosition] = useState<Position>(LOCK_FARMER_POSITION ? FIXED_FARMER_POSITION : { x: 50, y: 52 });
   const [facing, setFacing] = useState<"left" | "right">("right");
   const [moving, setMoving] = useState(false);
   const [planting, setPlanting] = useState(false);
   const [weeding, setWeeding] = useState(false);
+  const [watering, setWatering] = useState(false);
   const [movementDuration, setMovementDuration] = useState(2400);
   const [frameIndex, setFrameIndex] = useState(0);
   const movementTimer = useRef<number | null>(null);
@@ -111,15 +125,15 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
   }, [moveTo]);
 
   useEffect(() => {
-    const frames = weeding ? weedFrames : planting ? plantFrames : walkFrames;
-    if ((!moving && !planting && !weeding) || frames.length < 2) {
+    const frames = watering ? waterFrames : weeding ? weedFrames : planting ? plantFrames : walkFrames;
+    if ((!moving && !planting && !weeding && !watering) || frames.length < 2) {
       setFrameIndex(0);
       return;
     }
-    const playingAction = planting || weeding;
+    const playingAction = planting || weeding || watering;
     const animationTimer = window.setInterval(() => setFrameIndex((current) => playingAction ? Math.min(current + 1, frames.length - 1) : (current + 1) % frames.length), playingAction ? 380 : 130);
     return () => window.clearInterval(animationTimer);
-  }, [moving, planting, weeding, walkFrames, plantFrames, weedFrames]);
+  }, [moving, planting, weeding, watering, walkFrames, plantFrames, weedFrames, waterFrames]);
 
   useEffect(() => {
     if (!command) return;
@@ -134,6 +148,11 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
       const actionSide = activeCommand.side ?? (positionConfig && positionRef.current.x > positionConfig.seedX ? "right" : "left");
       let workPosition = positionConfig?.[actionSide] ?? { x: 50, y: 52 };
 
+      if (activeCommand.type === "water") {
+        const offset = WATER_ACTION_OFFSETS[actionSide];
+        workPosition = { x: workPosition.x + offset.x, y: workPosition.y + offset.y };
+      }
+
       if (activeCommand.type === "weed") {
         const stage = document.querySelector<HTMLElement>(".garden-stage");
         const weed = document.querySelector<HTMLElement>(
@@ -147,8 +166,7 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
           const weedY = ((weedRect.top + weedRect.height / 2 - stageRect.top) / stageRect.height) * 100;
           workPosition = {
             x: weedX + (actionSide === "left" ? -4 : 2),
-            y: weedY - 1,
-          };
+            y: weedY + (actionSide === "left" ? -1 : -2),          };
         }
       }
 
@@ -187,7 +205,8 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
       setFacing(actionSide === "left" ? "right" : "left");
       setFrameIndex(0);
       if (activeCommand.type === "plant") setPlanting(true);
-      else setWeeding(true);
+      else if (activeCommand.type === "weed") setWeeding(true);
+      else setWatering(true);
       await wait(1520);
       if (cancelled) return;
       if (activeCommand.type === "weed" && activeWeedElement) activeWeedElement.style.visibility = "hidden";
@@ -197,6 +216,7 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
       if (cancelled) return;
       setPlanting(false);
       setWeeding(false);
+      setWatering(false);
       busyRef.current = false;
       onCommandComplete(activeCommand.id);
     }
@@ -211,11 +231,11 @@ export default function GardenFarmerHamster({ target, command, onCommandComplete
 
   return (
     <div
-      className={`garden-farmer-hamster ${moving ? "garden-farmer-hamster--moving" : planting ? "garden-farmer-hamster--planting" : weeding ? "garden-farmer-hamster--weeding" : "garden-farmer-hamster--idle"}`}
+      className={`garden-farmer-hamster ${moving ? "garden-farmer-hamster--moving" : planting ? "garden-farmer-hamster--planting" : weeding ? "garden-farmer-hamster--weeding" : watering ? "garden-farmer-hamster--watering" : "garden-farmer-hamster--idle"}`}
       style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: 10 + Math.round(position.y), transitionDuration: `${movementDuration}ms` }}
       aria-hidden="true"
     >
-      <img src={weeding ? weedFrames[frameIndex] ?? farmerIdle : planting ? plantFrames[frameIndex] ?? farmerIdle : moving ? walkFrames[frameIndex] ?? farmerIdle : farmerIdle} alt="" style={{ transform: facing === "left" ? "scaleX(-1)" : undefined }} />
+      <img src={watering ? waterFrames[frameIndex] ?? farmerIdle : weeding ? weedFrames[frameIndex] ?? farmerIdle : planting ? plantFrames[frameIndex] ?? farmerIdle : moving ? walkFrames[frameIndex] ?? farmerIdle : farmerIdle} alt="" style={{ transform: facing === "left" ? "scaleX(-1)" : undefined }} />
     </div>
   );
 }

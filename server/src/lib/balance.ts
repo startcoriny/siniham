@@ -45,10 +45,23 @@ export const OFFLINE_SUMMARY_THRESHOLD_MS = 30 * 60 * 1000;
 
 // product-plan.md 오프라인 진행 로직에 "잡초 생성"만 있고 주기 수치는 없어 임시로 정함.
 // 성장(10분)의 절반이라 방치하면 수확 전에 한 번 잡초가 생긴다.
-export const WEED_INTERVAL_MS = 5 * 60 * 1000;
+export const WEED_IMMUNITY_MS = 6 * 60 * 60 * 1000;
+export const WEED_INTERVAL_MS = 3 * 60 * 60 * 1000;
+export const EMPTY_PLOT_WEED_CHANCE = 0.08;
+export const PLANTED_PLOT_WEED_CHANCE = 0.12;
+export const WATER_EFFECT_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+export const WATER_GROWTH_BOOST_RATIO = 0.1;
+export const MAX_WATER_BOOST_COUNT = 3;
 
-// 심거나 잡초를 뽑은 시점(weedFrom) 이후 WEED_INTERVAL_MS가 지나면 잡초가 생긴다.
-export function shouldGrowWeed(weedFrom: Date | null, now = Date.now()): boolean {
-  if (!weedFrom) return false;
-  return now - weedFrom.getTime() >= WEED_INTERVAL_MS;
+// 면역 시간이 끝난 뒤 완료된 3시간 구간 수만큼 잡초 발생을 판정한다.
+export function weedCheckCount(weedFrom: Date | null, now = Date.now()): number {
+  if (!weedFrom) return 0;
+  const elapsedAfterImmunity = now - weedFrom.getTime() - WEED_IMMUNITY_MS;
+  return Math.max(0, Math.floor(elapsedAfterImmunity / WEED_INTERVAL_MS));
+}
+
+export function shouldGrowWeed(checkCount: number, chancePerCheck: number, random = Math.random()): boolean {
+  if (checkCount < 1) return false;
+  const cumulativeChance = 1 - (1 - chancePerCheck) ** checkCount;
+  return random < cumulativeChance;
 }

@@ -14,7 +14,7 @@ import type { GardenFarmerCommand } from "../components/garden/GardenFarmerHamst
 const REFRESH_INTERVAL_MS = 30_000;
 
 export default function GardenPage() {
-  const { gardenPlots, seedInventory, produceInventory, gardenSummary, plantSeed, clearGardenPlot, removeWeed, fillGardenWithTestWeeds, harvestPlot, eatProduce, ackGardenSummary, refresh } = useGameState();
+  const { gardenPlots, seedInventory, produceInventory, gardenSummary, plantSeed, clearGardenPlot, removeWeed, waterGardenPlot, harvestPlot, eatProduce, ackGardenSummary, refresh } = useGameState();
   const { showToast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(gardenPlots[0]?.id ?? null);
   const [selectedCropId, setSelectedCropId] = useState<CropId>("CARROT");
@@ -29,12 +29,6 @@ export default function GardenPage() {
     const refreshTimer = window.setInterval(refresh, REFRESH_INTERVAL_MS);
     const clockTimer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => { window.clearInterval(refreshTimer); window.clearInterval(clockTimer); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    void fillGardenWithTestWeeds();
-    // 정원에 처음 진입할 때만 테스트용 잡초를 채운다. 뽑은 잡초는 다시 나타나지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -73,6 +67,26 @@ export default function GardenPage() {
     });
   }
 
+  function queueWatering() {
+    if (!selectedPlot || selectedPlot.status !== "GROWING" || farmerCommand) return;
+    const plotId = selectedPlot.id;
+    setFarmerCommand({
+      id: Date.now(),
+      type: "water",
+      target: selectedPlot,
+      perform: async () => {
+        try {
+          const effectApplied = await waterGardenPlot(plotId);
+          showToast(effectApplied ? "물을 줬어요. 성장이 빨라졌어요!" : "촉촉하게 물을 줬어요.");
+          return true;
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : "물주기에 실패했어요.");
+          return false;
+        }
+      },
+    });
+  }
+
   function clearSelectedPlot() {
     if (!selectedPlot || selectedPlot.status === "EMPTY") return;
     setClearPlotId(selectedPlot.id);
@@ -103,7 +117,7 @@ export default function GardenPage() {
         <div className="garden-seed-list">
           {GARDEN_CROPS.map((seed) => <button key={seed.id} type="button" onClick={() => setSelectedCropId(seed.id)} className={`garden-seed-card ${selectedCropId === seed.id ? "garden-seed-card--selected" : ""}`}><span className="garden-seed-packet garden-atlas-sprite" style={gardenSpriteStyle(seed.atlasX, "0%")} /><span>{seed.name}</span><small>{seedInventory[seed.id]}</small></button>)}
         </div>
-        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} busy={farmerCommand !== null} onPlant={queuePlanting} onRemoveWeed={queueWeedRemoval} onHarvest={() => runWork(() => harvestPlot(selectedId!), "수확물이 바구니에 들어갔어요.")} onClearPlot={clearSelectedPlot} />
+        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} busy={farmerCommand !== null} onPlant={queuePlanting} onRemoveWeed={queueWeedRemoval} onWater={queueWatering} onHarvest={() => runWork(() => harvestPlot(selectedId!), "수확물이 바구니에 들어갔어요.")} onClearPlot={clearSelectedPlot} />
       </section>
 
       <Modal open={basketOpen} onClose={() => setBasketOpen(false)} title="수확 바구니">
