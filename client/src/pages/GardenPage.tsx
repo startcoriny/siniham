@@ -87,6 +87,21 @@ export default function GardenPage() {
     });
   }
 
+  function queueHarvest() {
+    if (!selectedPlot || selectedPlot.status !== "READY" || farmerCommand) return;
+    const plotId = selectedPlot.id;
+    const cropId = selectedPlot.cropId;
+    setFarmerCommand({
+      id: Date.now(),
+      type: "harvest",
+      target: selectedPlot,
+      perform: () => runWork(
+        () => harvestPlot(plotId),
+        `${cropId ? CROP_MASTERS[cropId].name : "수확물"}이 바구니에 들어갔어요.`,
+      ),
+    });
+  }
+
   function clearSelectedPlot() {
     if (!selectedPlot || selectedPlot.status === "EMPTY") return;
     setClearPlotId(selectedPlot.id);
@@ -117,7 +132,7 @@ export default function GardenPage() {
         <div className="garden-seed-list">
           {GARDEN_CROPS.map((seed) => <button key={seed.id} type="button" onClick={() => setSelectedCropId(seed.id)} className={`garden-seed-card ${selectedCropId === seed.id ? "garden-seed-card--selected" : ""}`}><span className="garden-seed-packet garden-atlas-sprite" style={gardenSpriteStyle(seed.atlasX, "0%")} /><span>{seed.name}</span><small>{seedInventory[seed.id]}</small></button>)}
         </div>
-        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} busy={farmerCommand !== null} onPlant={queuePlanting} onRemoveWeed={queueWeedRemoval} onWater={queueWatering} onHarvest={() => runWork(() => harvestPlot(selectedId!), "수확물이 바구니에 들어갔어요.")} onClearPlot={clearSelectedPlot} />
+        <GardenActionSheet plot={selectedPlot} selectedCropId={selectedCropId} seedCount={seedInventory[selectedCropId]} now={now} busy={farmerCommand !== null} onPlant={queuePlanting} onRemoveWeed={queueWeedRemoval} onWater={queueWatering} onHarvest={queueHarvest} onClearPlot={clearSelectedPlot} />
       </section>
 
       <Modal open={basketOpen} onClose={() => setBasketOpen(false)} title="수확 바구니">

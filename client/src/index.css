@@ -27,6 +27,29 @@ body {
 .garden-farmer-hamster--planting { width: 15%; transform: translate(-46%, -58%); }
 .garden-farmer-hamster--weeding { width: 15%; transform: translate(-46%, -58%); }
 .garden-farmer-hamster--weeding img { width: 76%; margin: 12% auto 0; }
+.garden-farmer-hamster--harvesting { width: 15%; transform: translate(-46%, -61%); --harvest-carrot-top: 63%; --harvest-carrot-left: 70%; --harvest-hamster-x: 0%; --harvest-hamster-y: 0%; --harvest-front-arm-clip: polygon(50% 48%, 84% 48%, 84% 78%, 50% 78%); --harvest-front-leg-clip: polygon(0 0, 0 0, 0 0, 0 0); }
+.garden-farmer-hamster--harvesting img { width: 82%; margin: 10% auto 0; }
+/* 프레임별 조정값. 1번에서 확정한 값은 위 기본값으로 보존하고, 현재 2번만 별도로 수정한다. */
+.garden-farmer-hamster--harvest-frame-2 { --harvest-carrot-top: 63%; --harvest-carrot-left: 70%; --harvest-hamster-x: 10%; --harvest-hamster-y: 0%; --harvest-front-arm-clip: polygon(50% 48%, 84% 48%, 84% 78%, 50% 78%); }
+.garden-farmer-hamster--harvest-frame-3 { --harvest-carrot-top: 63%; --harvest-carrot-left: 70%; --harvest-hamster-x: 10%; --harvest-hamster-y: 0%; --harvest-front-arm-clip: polygon(34% 50%, 39% 48%, 46% 51%, 49% 56%, 47% 64%, 41% 67%, 35% 63%, 32% 56%); --harvest-front-leg-clip: polygon(28% 72%, 36% 68%, 48% 65%, 50% 76%, 44% 86%, 38% 90%, 30% 89%, 25% 82%); }
+/* 수확 프레임 검수 레이어: 몸+뒤팔 → 흙 없는 당근 → 앞팔. */
+.garden-farmer-hamster--harvesting .garden-harvest-layer__hamster-base { position: relative; z-index: 0; translate: var(--harvest-hamster-x) var(--harvest-hamster-y); transform: scaleX(-1); }
+.garden-farmer-hamster--harvesting .garden-harvest-layer__carrot { position: absolute; z-index: 1; top: var(--harvest-carrot-top); left: var(--harvest-carrot-left); max-width: none; margin: 0; transform: translate(-50%, -50%); }
+.garden-farmer-hamster--harvesting .garden-harvest-layer__front-arm { position: absolute; z-index: 2; top: 0; left: 9%; width: 82%; margin: 10% 0 0; translate: var(--harvest-hamster-x) var(--harvest-hamster-y); transform: scaleX(-1); clip-path: var(--harvest-front-arm-clip); }
+.garden-farmer-hamster--harvesting .garden-harvest-layer__front-arm--cutout { clip-path: none; }
+.garden-farmer-hamster--harvesting .garden-harvest-layer__front-leg { position: absolute; z-index: 2; top: 0; left: 9%; width: 82%; margin: 10% 0 0; translate: var(--harvest-hamster-x) var(--harvest-hamster-y); transform: scaleX(-1); clip-path: var(--harvest-front-leg-clip); }
+.garden-slot--harvest-preview .garden-sparkle { visibility: hidden; }
+/* 뽑은 작물이 놓이는 자리. 햄스터와 같은 상자를 덮어 앞발 근처에 위치를 잡는다. */
+.garden-carried-crop-holder { position: absolute; inset: 0; pointer-events: none; }
+/* 손에 든 작물. 크기는 밭에서 실측한 px를 그대로 받으므로 여기서 조절하지 않는다.
+   위치만 조절한다. x는 양수면 오른쪽, y는 양수면 아래. */
+.garden-carried-crop { position: absolute; top: 50%; left: 50%; translate: calc(-50% + var(--garden-carried-x, 12%)) calc(-50% + var(--garden-carried-y, 22%)); animation: garden-crop-lift 220ms ease-out; }
+.garden-farmer-hamster--facing-left .garden-carried-crop { translate: calc(-50% - var(--garden-carried-x, 12%)) calc(-50% + var(--garden-carried-y, 22%)); }
+
+@keyframes garden-crop-lift {
+  from { opacity: 0; scale: 0.88; }
+  to { opacity: 1; scale: 1; }
+}
 .garden-farmer-hamster--watering { width: 15%; transform: translate(-46%, -70%); }
 .garden-farmer-hamster--watering img { width: 100%; margin: 0; }
 .garden-farmer-hamster--idle img { animation: garden-farmer-idle 1.8s ease-in-out infinite; }
@@ -51,6 +74,15 @@ body {
 .garden-atlas-sprite--sprout { width: 46%; }
 .garden-atlas-sprite--growing { width: 78%; }
 .garden-atlas-sprite--ready { width: 96%; }
+/* 뽑히는 동안 밭에서 좌우로 흔들린다. translate는 아틀라스 보정용 transform과 별개로 겹쳐 적용된다. */
+.garden-crop--harvesting { animation: garden-crop-shake 240ms ease-in-out infinite; }
+.garden-crop--picked { visibility: hidden; }
+
+@keyframes garden-crop-shake {
+  0%, 100% { translate: 0 0; }
+  25% { translate: -3% 0; }
+  75% { translate: 3% 0; }
+}
 /* 해바라기 최종 상태만 좌우 조정: 음수는 왼쪽, 양수는 오른쪽 */
 .garden-atlas-sprite--sunflower.garden-atlas-sprite--ready { --garden-stage-offset-x: 12%; }
 .garden-planted-seed { position: absolute; z-index: 1; top: 50%; left: 50%; width: 64%; aspect-ratio: 1; background: url("./assets/garden/planted-seed.png") center / contain no-repeat; image-rendering: pixelated; transform: translate(-50%, -50%); }
