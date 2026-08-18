@@ -1,9 +1,10 @@
 # 배포 가이드
 
-Oracle 서버(Ubuntu 기준)에 Docker Compose로 올리는 순서입니다. HTTPS 종단은 호스트에 설치된 nginx가 맡고, 앱 컨테이너는 `127.0.0.1:3000`에만 붙습니다. DB는 도커 내부 네트워크에만 있어 호스트에서도 직접 접근할 수 없습니다.
+Oracle 서버(Ubuntu 기준)에 Docker Compose로 올리는 순서입니다. HTTPS 종단은 호스트에 설치된 nginx가 맡습니다. 앱과 DB 모두 호스트 루프백에만 게시하므로 공인 IP로 직접 붙을 수 있는 포트는 nginx의 80과 443뿐입니다.
 
 ```text
 인터넷 → nginx (호스트, 80/443, TLS 종단) → 127.0.0.1:3000 → app 컨테이너 → db 컨테이너
+로컬 PC → SSH 터널 → 127.0.0.1:5432 → db 컨테이너
 ```
 
 ## 1. 사전 준비
@@ -110,10 +111,26 @@ curl -I https://<도메인>/api/health                    # 200 이어야 정상
 
 ## 7. 업데이트
 
+로컬에서 `scripts/deploy.sh`를 실행합니다. 서버에 SSH로 들어갈 필요가 없습니다.
+
 ```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
+./scripts/deploy.sh
 ```
+
+백업 -> `origin/main`으로 갱신 -> 재빌드 -> 헬스체크 순으로 진행하고, 헬스체크가 30회(약 60초) 안에 200을 못 받으면 **직전 커밋으로 자동 롤백**한 뒤 앱 로그를 출력합니다.
+
+배포 대상은 항상 `origin/main`입니다. 로컬 브랜치가 아니라 원격 main을 서버가 받아갑니다.
+
+새 마이그레이션이 포함된 배포는 진행 전에 확인을 받습니다. 롤백은 코드만 되돌리고 스키마는 되돌리지 않아서, 구버전 코드와 신버전 스키마가 어긋날 수 있기 때문입니다. 그 경우 백업으로 복구합니다.
+
+설정은 환경변수로 바꿉니다.
+
+| 변수 | 기본값 |
+| --- | --- |
+| `SSH_HOST` | `ubuntu@161.33.177.165` |
+| `SSH_KEY` | 없음. `~/.ssh/config`에 등록했다면 불필요 |
+| `REMOTE_DIR` | `/opt/siniham` |
+| `HEALTH_URL` | `https://siniham.app/api/health` |
 
 nginx는 건드리지 않아도 됩니다.
 
@@ -137,13 +154,21 @@ docker compose -f docker-compose.prod.yml --profile backup run --rm backup
 
 **HTTPS가 필수입니다.** 인증 쿠키에 `secure` 플래그가 붙기 때문에 HTTP로 접속하면 브라우저가 쿠키를 저장하지 않아 로그인이 되지 않습니다. nginx를 거치지 않고 `127.0.0.1:3000`에 직접 붙는 구성은 로그인이 동작하지 않습니다. 로컬 개발에서는 `NODE_ENV`가 production이 아니라 이 플래그가 꺼지므로 `http://localhost`로 정상 동작합니다.
 
-**DB는 외부에서 접근할 수 없습니다.** `db` 서비스는 포트를 게시하지 않습니다. 호스트에서도 `localhost:5432`로 붙지 않고, `db`라는 호스트명은 도커 내부에서만 해석됩니다. 의도된 구성입니다. 내용을 볼 때는 컨테이너 안에서 접속합니다.
+**DB는 SSH 터널로만 접근합니다.** `db` 서비스는 `127.0.0.1:5432`에만 게시되어 공인 IP로는 붙을 수 없습니다. 로컬에서 GUI 툴을 쓰려면 터널을 엽니다.
+
+```bash
+./scripts/db-tunnel.sh
+```
+
+로컬 `55432`가 서버의 `127.0.0.1:5432`로 연결됩니다. 로컬 `5432`는 `docker-compose.yml`의 개발 DB가 쓰고 있어 피했습니다. DBeaver, TablePlus, `psql -h localhost -p 55432`, `DATABASE_URL=... npx prisma studio` 모두 이걸로 붙습니다.
+
+비밀번호는 기본적으로 출력하지 않습니다. 터미널 출력을 어딘가에 붙여넣다가 운영 비밀번호가 새는 것을 막기 위해서입니다. 전체 접속 문자열이 필요하면 `--url`을 붙입니다.
+
+서버에서 바로 볼 때는 컨테이너 안으로 들어갑니다.
 
 ```bash
 docker compose -f docker-compose.prod.yml exec db psql -U <POSTGRES_USER> -d <POSTGRES_DB>
 ```
-
-GUI 툴을 쓰려면 `docker-compose.debug.yml` 같은 오버라이드로 `127.0.0.1:5432:5432`만 잠깐 게시한 뒤 SSH 터널로 붙습니다. 공인 IP에 바인딩하지 않습니다.
 
 **요청 제한이 걸려 있습니다.** 로그인과 회원가입은 IP당 10분에 20회, 그 외 API는 분당 300회입니다. 조정은 `server/src/middleware/rateLimit.ts`에서 합니다.
 
