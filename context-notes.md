@@ -391,3 +391,53 @@ npm install로 최신 버전을 그대로 받았더니 기억(학습 시점) 기
 자율 행동 선택 시 보유 중인 쳇바퀴와 집을 확인한다. 쳇바퀴는 약 20% 확률로 가구 좌표까지 이동해 2.6초 동안 걷기 프레임으로 달리는 모습을 보여준다. 집은 다음 20% 구간에서 입구까지 이동한 뒤 햄스터를 숨기고 3초간 `Z z z` 상태로 쉬었다가 집 옆으로 나온다. 행동 위치는 사용자가 꾸미기에서 저장한 최신 가구 좌표를 따른다.
 
 쳇바퀴 가구 자체도 회전해 보이도록 `cage-items/wheel-spin/frame-01.png`부터 `frame-04.png`까지 제작했다. 받침, 지지대, 중심축은 고정하고 원형 림, 살, 발판의 회전 위상만 바꾼 프레임이며 햄스터가 쳇바퀴를 사용하는 2.6초 동안 160ms 간격으로 반복한다.
+
+## 2026-08-12 - 운영 리버스 프록시를 Caddy에서 호스트 nginx로 정리
+
+운영 서버(`/opt/siniham`)를 확인해 보니 실제 구성이 저장소와 달랐다. `docker ps`에 `siniham-app-1`과 `siniham-db-1` 두 개만 떠 있고, 80/443은 도커가 아니라 호스트에 apt로 설치된 nginx가 잡고 있었다. 즉 `docker-compose.prod.yml`의 Caddy 서비스는 실서버에서 한 번도 쓰인 적이 없고, 그대로 배포했다면 포트 충돌로 못 떴을 구성이었다.
+
+서버를 저장소에 맞추는 대신 저장소를 서버에 맞추기로 했다. 이미 동작 중인 certbot 인증서를 건드리지 않는 쪽이 위험이 낮고, nginx를 내렸다가 Let's Encrypt 재발급이 실패하면 사이트가 통째로 내려가기 때문이다. `docker-compose.prod.yml`에서 caddy 서비스와 `caddy-data`, `caddy-config` 볼륨을 제거하고 `Caddyfile`을 삭제했다. `docs/deployment.md`에는 Caddyfile이 하던 gzip, 보안 헤더, 리버스 프록시에 대응하는 nginx 서버 블록과 certbot 절차를 대신 넣었다.
+
+앱 컨테이너는 `expose: 3000`에서 `ports: 127.0.0.1:3000:3000`으로 바꿨다. 실서버는 `0.0.0.0:3000`으로 열려 있어 HTTPS를 우회해 API에 직접 붙을 수 있는 상태였다. nginx만 프록시하면 되므로 루프백에만 바인딩한다.
+
+`.env.production.example`에 남아 있는 `DOMAIN`, `ACME_EMAIL`은 Caddy 전용이라 이제 쓰이지 않는다. 권한 설정상 이 대화에서 편집하지 못해 그대로 두었다.
+
+## 2026-08-12 - Dockerfile의 NODE_ENV와 npm ci는 문제가 아니다 (검증 완료)
+
+런타임 스테이지가 `ENV NODE_ENV=production`을 `npm ci`보다 먼저 선언하므로 devDependencies가 빠질 것이라고 의심했다. `NODE_ENV=production npm config get omit`이 `dev`를 반환하는 것이 근거였다. 실제로 이미지를 빌드해 확인한 결과 **틀린 추측이었다.**
+
+`node:24-alpine`(npm 11.16.0)에서 `ENV NODE_ENV=production` 상태로 `npm ci`를 돌리면 `npm config get omit`은 여전히 `dev`를 반환하지만, `dotenv`, `prisma`, `typescript`가 모두 `node_modules`에 설치된다. `npm ci --include=dev`를 붙인 결과와 동일하다. 이 프로젝트는 루트 `package.json`에 의존성이 하나도 없고 전부 workspace 패키지(`client`, `server`)에 있는데, 이 구성에서는 workspace의 devDependencies가 `omit=dev`와 무관하게 설치된다.
+
+그러므로 `Dockerfile`은 고칠 것이 없다. `npm ci --include=dev`로 바꿨던 커밋은 되돌렸다.
+
+교훈 두 가지를 남긴다. `npm config get omit`은 설정 해석 결과일 뿐 `npm ci`의 실제 설치 동작이 아니다. 그리고 운영이 7일째 정상 동작 중이라는 사실 자체가 이 가설의 반증이었는데, 그걸 예외 상황으로 치부하고 가설을 유지한 것이 잘못이었다. 동작하는 시스템을 두고 "동작할 리 없다"는 결론이 나오면 결론이 아니라 가정을 의심해야 한다.
+
+검증은 앱 전체를 빌드하지 않고 package.json 3개만 넣은 최소 컨텍스트로 `npm ci` 단계만 재현해서 했다. 같은 의심이 다시 들면 이 방식이 1~2분이면 끝난다.
+
+## 2026-08-12 - 실서버 nginx 설정 대조
+
+`/etc/nginx/sites-enabled/`의 실제 내용을 확인해 `docs/deployment.md`를 맞췄다. 도메인은 `siniham.app`과 `www.siniham.app` 두 개이고, certbot이 443 블록과 80 리다이렉트 블록을 이미 생성해 둔 상태다. nginx가 서빙하는 사이트는 siniham 하나뿐이다.
+
+Caddyfile에 있던 gzip과 보안 헤더 4종(HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy)은 실서버 nginx에 없다. Caddy가 한 번도 쓰인 적이 없으니 이 설정도 운영에 반영된 적이 없다. 문서에 별도 절로 분리해 두었고 서버 적용은 아직 하지 않았다.
+
+실제 설정에는 `proxy_http_version 1.1;`이 있어 문서에도 반영했다.
+
+## 2026-08-12 - 운영 DB 외부 접근과 배포 스크립트
+
+DB를 로컬 GUI 툴로 보기 위해 `db` 서비스를 `127.0.0.1:5432`에 게시했다. 공인 IP에 여는 선택지는 처음부터 제외했다. 접근 경로는 SSH 터널 하나뿐이고, 서버 셸을 얻은 공격자는 어차피 `docker exec`로 DB를 볼 수 있으므로 루프백 게시로 늘어나는 공격면은 사실상 없다. 필요할 때만 오버라이드로 여는 방식도 검토했으나, 볼 때마다 컨테이너를 재시작해야 해서 순간적인 연결 끊김이 생기는 것에 비해 얻는 것이 없어 상시 게시로 정했다.
+
+`scripts/db-tunnel.sh`는 로컬 55432를 쓴다. 로컬 5432는 `docker-compose.yml`의 개발 DB가 이미 점유한다. 비밀번호는 기본적으로 출력하지 않고 `--url`을 줄 때만 출력한다. 터미널 출력을 그대로 붙여넣는 흐름에서 운영 비밀번호가 새는 경로를 막기 위해서다.
+
+`scripts/deploy.sh`는 로컬에서 실행해 SSH로 서버 작업을 수행한다. 배포 대상은 항상 `origin/main`이다. 헬스체크 실패 시 직전 커밋으로 자동 롤백하되, 그 전에 새 마이그레이션 포함 여부를 검사해 포함된 경우에만 진행 확인을 받는다. 코드는 되돌아가도 스키마는 되돌아가지 않아 "구버전 코드 + 신버전 스키마"가 더 깊은 고장이 되기 때문이다. 그 경우 5단계에서 만든 백업 경로를 함께 안내한다.
+
+두 스크립트 모두 `SSH_KEY` 경로에 공백이 들어가도 깨지지 않도록 `set --`로 위치 인자를 쌓아 ssh에 넘긴다. 문자열 변수로 옵션을 모으면 단어 분리 때문에 깨진다. 실제 키 경로가 `Desktop/oracle cloud key/...`라 공백이 있다.
+
+백업은 새로 만들지 않고 기존 `scripts/backup-db.sh`와 compose의 `backup` 프로파일을 그대로 호출한다. 헬스체크도 기존 `/api/health`를 쓴다.
+
+## 2026-08-12 - 로컬 origin/main이 오래돼 판단을 그르쳤던 건
+
+작업 중 `main`에 배포 구성이 없고 브랜치와 123개 파일이 다르며 마이그레이션 6개가 새로 붙는다고 판단했는데 전부 틀렸다. 로컬 `origin/main`이 `e4becee`에 머물러 있었고 실제로는 `9006232`였다. `git fetch` 후 다시 보니 PR #1이 이미 머지돼 케이지 개편은 전부 `main`에 있었고, 실제 차이는 12개 파일에 **새 마이그레이션은 없었다.**
+
+원격 브랜치 상태를 근거로 판단하기 전에 `git fetch`부터 한다. 리모트 추적 브랜치는 마지막 fetch 시점의 스냅샷이지 현재 상태가 아니다.
+
+한편 `origin/main`의 `Dockerfile`에는 실제 버그가 있다. `server/prisma.config.ts`를 런타임 이미지로 COPY하지 않는데, `schema.prisma`에 `datasource url`이 없어 이 파일 없이는 `migrate deploy`가 죽는다. 그래서 서버 `/opt/siniham/Dockerfile`에 커밋되지 않은 손수정이 들어가 있었다. 커밋 `20b980c`가 같은 내용을 정식으로 담고 있어 머지하면 손수정이 정규 커밋으로 대체된다.

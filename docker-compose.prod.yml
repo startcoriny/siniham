@@ -1,4 +1,4 @@
-# 운영용 앱과 PostgreSQL 구성. 외부에는 앱 포트만 공개한다.
+# 운영용 구성. HTTPS 종단은 호스트에 설치된 nginx가 맡고, 앱은 localhost에만, DB는 도커 내부 네트워크에만 있다.
 services:
   app:
     build: .
@@ -8,8 +8,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+    # 공인 IP에 열지 않는다. 호스트 nginx가 127.0.0.1:3000으로만 프록시한다.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -20,6 +21,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    # 호스트 루프백에만 게시한다. 외부에서는 SSH 터널을 거쳐야 붙을 수 있다.
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:

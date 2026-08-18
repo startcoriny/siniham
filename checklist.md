@@ -488,3 +488,20 @@ CSS 재생 함정 두 가지. 래퍼에 `key`를 주면 `HamsterSprite`까지 �
 - 계정 삭제. `DELETE /api/auth/me` 204 -> `/me` 401, 연관 테이블 고아 행 0건 확인
 - 화면(Playwright, PC 1280 / 모바일 390). 시작 화면 캐릭터 연출, 약관/개인정보 화면, 회원가입 검증(비밀번호 불일치/약관 미동의), 로그인 비밀번호 표시 토글, 2일 부재 후 정원 소식 모달 문구가 실제 밭 상태와 일치, 확인 후 새로고침해도 다시 안 뜸, 미션 요약("오늘 남은 미션 3개 / 자정까지 5시간 11분"), 설정에서 탈퇴 -> 시작 화면 복귀 + DB에서 계정 삭제까지 확인
 - 콘솔 에러는 파비콘 404와 로그인 전 `/api/auth/me` 401 외 없음
+
+## 운영 접근과 배포 자동화 (2026-08-12)
+
+- [x] `docker-compose.prod.yml`의 caddy 서비스 제거, `Caddyfile` 삭제 (실서버는 호스트 nginx가 80/443을 잡고 있어 포트가 겹친다)
+- [x] app을 `0.0.0.0:3000` -> `127.0.0.1:3000`으로 바꿔 HTTPS 우회 접근 차단
+- [x] `docs/deployment.md`를 실서버 nginx + certbot 구성에 맞춰 재작성
+- [x] db를 `127.0.0.1:5432`에 게시 (공인 IP에는 열지 않는다)
+- [x] `scripts/db-tunnel.sh` 추가 - 로컬 55432 -> 서버 루프백 5432 SSH 터널
+- [x] `scripts/deploy.sh` 추가 - 백업 -> origin/main 갱신 -> 재빌드 -> 헬스체크 -> 실패 시 자동 롤백
+- [ ] 브랜치를 `origin/main` 위로 rebase 후 PR 생성, CI 통과 확인, 머지
+- [ ] `./scripts/deploy.sh` 실제 실행 (서버 쓰기 작업은 사용자가 직접 수행)
+- [ ] `./scripts/db-tunnel.sh`로 로컬 GUI 툴 접속 확인
+- [ ] nginx에 보안 헤더 4종과 gzip 추가 (문서에는 반영, 서버 미적용)
+- [ ] `.env.production.example`에서 미사용이 된 `DOMAIN`, `ACME_EMAIL` 제거 (Caddy 전용이었다)
+
+검증. `sh -n`으로 두 스크립트 문법 확인, `docker compose -f docker-compose.prod.yml config`로
+app과 db 모두 `host_ip: 127.0.0.1`인지 확인, `npm test` 6건 통과.

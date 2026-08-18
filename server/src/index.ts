@@ -11,9 +11,16 @@ import { missionsRouter } from "./routes/missions";
 import { behaviorsRouter } from "./routes/behaviors";
 import { hamsterRouter } from "./routes/hamster";
 import { seedItemMasters } from "./lib/seedItemMasters";
+import { apiLimiter } from "./middleware/rateLimit";
 import { env } from "./lib/env";
 
 const app = express();
+
+// 운영에서는 리버스 프록시(HTTPS 종단) 뒤에 선다. 이 설정이 없으면 모든 요청의 IP가
+// 프록시 주소로 보여서 요청 제한이 전체 사용자에게 한꺼번에 걸린다. 바로 앞의 프록시 한 대만 신뢰한다.
+if (env.nodeEnv === "production") {
+  app.set("trust proxy", 1);
+}
 
 app.use(express.json());
 app.use(cookieParser());
@@ -22,6 +29,7 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.use("/api", apiLimiter);
 app.use("/api/auth", authRouter);
 app.use("/api/state", stateRouter);
 app.use("/api/shop", shopRouter);
